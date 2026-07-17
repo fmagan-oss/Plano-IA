@@ -10,6 +10,23 @@ import type {
   StrategyKey,
 } from './types';
 import { brandColorMap } from './brands';
+import type { Locale } from './i18n';
+
+/** Localized strategy labels + descriptions (UI + generated texts). */
+export const STRATEGY_TEXT: Record<Locale, Record<StrategyKey, { label: string; description: string }>> = {
+  fr: {
+    balanced: { label: 'Équilibré', description: 'Compromis CA / volume / marge. La lecture rayon la plus lisible, sans sur-pondérer un seul indicateur.' },
+    rotation: { label: 'Rotation', description: 'Priorité aux fortes rotations (volume). Limite les ruptures sur les références qui tournent le plus.' },
+    margin: { label: 'Marge', description: 'Priorité à la contribution marge. Met en avant les références les plus rentables au linéaire.' },
+    revenue: { label: 'CA', description: 'Priorité au chiffre d’affaires. Alloue le facing au poids commercial de chaque référence.' },
+  },
+  en: {
+    balanced: { label: 'Balanced', description: 'A value / volume / margin compromise. The most readable shelf, without over-weighting a single KPI.' },
+    rotation: { label: 'Rotation', description: 'Priority to high-rotation SKUs (volume). Limits out-of-stocks on the fastest movers.' },
+    margin: { label: 'Margin', description: 'Priority to margin contribution. Puts the most profitable SKUs forward on the shelf.' },
+    revenue: { label: 'Value', description: 'Priority to sales value. Allocates facings to each SKU’s commercial weight.' },
+  },
+};
 
 export const STRATEGIES: Record<StrategyKey, Strategy> = {
   balanced: {
@@ -133,8 +150,8 @@ function buildBrandBlocks(facings: Facing[], colorMap: Record<string, string>): 
  * brand, best sellers first. Novelties are lifted toward eye-level shelves
  * (levels 1–2 on a 5-shelf fixture).
  */
-function buildShelves(facings: Facing[], blocks: BrandBlock[], fixture: Fixture): Shelf[] {
-  const shelfLabels = labelShelves(fixture.shelves);
+function buildShelves(facings: Facing[], blocks: BrandBlock[], fixture: Fixture, locale: Locale): Shelf[] {
+  const shelfLabels = labelShelves(fixture.shelves, locale);
   const shelves: Shelf[] = shelfLabels.map((label, level) => ({ level, label, cells: [] }));
 
   // Order facings brand-by-brand (blocks are sorted by weight), best sellers first.
@@ -186,15 +203,21 @@ function buildShelves(facings: Facing[], blocks: BrandBlock[], fixture: Fixture)
   return shelves;
 }
 
-function labelShelves(n: number): string[] {
-  if (n <= 1) return ['Niveau unique'];
+const SHELF_WORDS: Record<Locale, { single: string; top: string; bottom: string; eye: string; hand: string; nth: (n: number) => string }> = {
+  fr: { single: 'Niveau unique', top: 'Niveau haut', bottom: 'Niveau bas', eye: 'Niveau des yeux', hand: 'Niveau des mains', nth: (n) => `Niveau ${n}` },
+  en: { single: 'Single shelf', top: 'Top shelf', bottom: 'Bottom shelf', eye: 'Eye level', hand: 'Hand level', nth: (n) => `Shelf ${n}` },
+};
+
+function labelShelves(n: number, locale: Locale): string[] {
+  const w = SHELF_WORDS[locale];
+  if (n <= 1) return [w.single];
   const labels: string[] = [];
   for (let i = 0; i < n; i++) {
-    if (i === 0) labels.push('Niveau haut');
-    else if (i === n - 1) labels.push('Niveau bas');
-    else if (i === 1) labels.push('Niveau des yeux');
-    else if (i === 2) labels.push('Niveau des mains');
-    else labels.push(`Niveau ${i + 1}`);
+    if (i === 0) labels.push(w.top);
+    else if (i === n - 1) labels.push(w.bottom);
+    else if (i === 1) labels.push(w.eye);
+    else if (i === 2) labels.push(w.hand);
+    else labels.push(w.nth(i + 1));
   }
   return labels;
 }
@@ -208,52 +231,81 @@ function eyeLevelOrder(n: number): number[] {
 }
 
 function buildBuyerFrame(
-  strategy: Strategy,
+  strategyKey: StrategyKey,
   blocks: BrandBlock[],
   novelties: Product[],
-  totalRevenue: number
+  totalRevenue: number,
+  locale: Locale
 ): BuyerFrame {
+  const sx = STRATEGY_TEXT[locale][strategyKey];
   const top = blocks[0];
   const leaderShare = top ? Math.round(top.share * 100) : 0;
   const brandCount = blocks.length;
+  const fr = locale === 'fr';
 
   const keyMoves: string[] = [];
   if (top) {
     keyMoves.push(
-      `Bloc leader « ${top.brand} » : ${leaderShare}% du linéaire pour ${Math.round(top.revenueShare * 100)}% du CA — cohérence poids marché / facing.`
+      fr
+        ? `Bloc leader « ${top.brand} » : ${leaderShare}% du linéaire pour ${Math.round(top.revenueShare * 100)}% du CA — cohérence poids marché / facing.`
+        : `Lead block “${top.brand}”: ${leaderShare}% of shelf for ${Math.round(top.revenueShare * 100)}% of value — market weight and facings are consistent.`
     );
   }
   const overweight = blocks.find((b) => b.share - b.revenueShare > 0.08);
   if (overweight) {
+    const pts = Math.round((overweight.share - overweight.revenueShare) * 100);
     keyMoves.push(
-      `« ${overweight.brand} » sur-facée vs son CA — arbitrage possible de ${Math.round((overweight.share - overweight.revenueShare) * 100)} pts vers les rotations.`
+      fr
+        ? `« ${overweight.brand} » sur-facée vs son CA — arbitrage possible de ${pts} pts vers les rotations.`
+        : `“${overweight.brand}” is over-faced vs its value share — ${pts} pts could be re-allocated to fast movers.`
     );
   }
   const underweight = blocks.find((b) => b.revenueShare - b.share > 0.08);
   if (underweight) {
+    const pts = Math.round((underweight.revenueShare - underweight.share) * 100);
     keyMoves.push(
-      `« ${underweight.brand} » sous-facée vs son CA — opportunité de gagner ${Math.round((underweight.revenueShare - underweight.share) * 100)} pts de linéaire.`
+      fr
+        ? `« ${underweight.brand} » sous-facée vs son CA — opportunité de gagner ${pts} pts de linéaire.`
+        : `“${underweight.brand}” is under-faced vs its value share — an opportunity to gain ${pts} pts of shelf.`
     );
   }
-  keyMoves.push(`${brandCount} marques blocs-marquées, référence best-seller en tête de bloc, verticalisation par segment.`);
+  keyMoves.push(
+    fr
+      ? `${brandCount} marques blocs-marquées, référence best-seller en tête de bloc, verticalisation par segment.`
+      : `${brandCount} brands in clean blocks, best-seller leading each block, vertical segmentation.`
+  );
 
-  const noveltyPitch = novelties.slice(0, 6).map(
-    (p) => `${p.brand} — ${p.name} : nouveauté positionnée au niveau des yeux, facing de lancement garanti.`
+  const noveltyPitch = novelties.slice(0, 6).map((p) =>
+    fr
+      ? `${p.brand} — ${p.name} : nouveauté positionnée au niveau des yeux, facing de lancement garanti.`
+      : `${p.brand} — ${p.name}: new product placed at eye level with a guaranteed launch facing.`
   );
 
   return {
-    headline: `Recommandation « ${strategy.label} » — ${brandCount} marques, ${novelties.length} nouveauté(s)`,
-    categorySummary: `Catégorie construite selon la logique « ${strategy.label} » (${strategy.description.toLowerCase()}) sur une base de ${Math.round(
-      totalRevenue
-    ).toLocaleString('fr-FR')} € de CA analysé.`,
+    headline: fr
+      ? `Recommandation « ${sx.label} » — ${brandCount} marques, ${novelties.length} nouveauté(s)`
+      : `“${sx.label}” recommendation — ${brandCount} brands, ${novelties.length} new product(s)`,
+    categorySummary: fr
+      ? `Catégorie construite selon la logique « ${sx.label} » (${sx.description.toLowerCase()}) sur une base de ${Math.round(totalRevenue).toLocaleString('fr-FR')} € de CA analysé.`
+      : `Category built with the “${sx.label}” logic (${sx.description.toLowerCase()}) on ${Math.round(totalRevenue).toLocaleString('en-GB')} € of analyzed sales value.`,
     keyMoves,
-    noveltyPitch: noveltyPitch.length ? noveltyPitch : ['Aucune nouveauté détectée dans le fichier importé.'],
+    noveltyPitch: noveltyPitch.length
+      ? noveltyPitch
+      : [fr ? 'Aucune nouveauté détectée dans le fichier importé.' : 'No new product detected in the imported file.'],
     expectedImpact: [
-      `Lisibilité rayon renforcée : blocs marques homogènes et hiérarchie de facing lisible.`,
-      `Réduction du risque de rupture sur les rotations via l’allocation « ${strategy.label} ».`,
+      fr
+        ? 'Lisibilité rayon renforcée : blocs marques homogènes et hiérarchie de facing lisible.'
+        : 'Stronger shelf readability: consistent brand blocks and a clear facing hierarchy.',
+      fr
+        ? `Réduction du risque de rupture sur les rotations via l’allocation « ${sx.label} ».`
+        : `Lower out-of-stock risk on fast movers thanks to the “${sx.label}” allocation.`,
       novelties.length
-        ? `Mise en avant de ${novelties.length} innovation(s) au niveau des yeux pour accélérer le sell-out.`
-        : `Base saine pour intégrer les prochaines innovations sans refonte du plan.`,
+        ? (fr
+            ? `Mise en avant de ${novelties.length} innovation(s) au niveau des yeux pour accélérer le sell-out.`
+            : `${novelties.length} innovation(s) showcased at eye level to accelerate sell-out.`)
+        : (fr
+            ? 'Base saine pour intégrer les prochaines innovations sans refonte du plan.'
+            : 'A sound base to integrate upcoming innovations without redoing the plan.'),
     ],
   };
 }
@@ -262,7 +314,8 @@ function buildBuyerFrame(
 export function generatePlanogram(
   products: Product[],
   key: StrategyKey,
-  fixture: Fixture = DEFAULT_FIXTURE
+  fixture: Fixture = DEFAULT_FIXTURE,
+  locale: Locale = 'fr'
 ): Planogram {
   const strategy = STRATEGIES[key];
   const brands = Array.from(new Set(products.map((p) => p.brand)));
@@ -271,10 +324,10 @@ export function generatePlanogram(
   const totalFacings = fixture.shelves * fixture.facingsPerShelf;
   const facingsList = allocateFacings(products, totalFacings, key);
   const brandBlocks = buildBrandBlocks(facingsList, colorMap);
-  const shelves = buildShelves(facingsList, brandBlocks, fixture);
+  const shelves = buildShelves(facingsList, brandBlocks, fixture, locale);
   const novelties = products.filter((p) => p.isNew);
   const totalRevenue = products.reduce((a, p) => a + p.revenue, 0);
-  const buyerFrame = buildBuyerFrame(strategy, brandBlocks, novelties, totalRevenue);
+  const buyerFrame = buildBuyerFrame(key, brandBlocks, novelties, totalRevenue, locale);
 
   return {
     strategy,
@@ -288,8 +341,9 @@ export function generatePlanogram(
 }
 
 /** Deterministic embedded copilot: rule-based reading of the dataset. */
-export function deterministicInsights(products: Product[]): string[] {
+export function deterministicInsights(products: Product[], locale: Locale = 'fr'): string[] {
   if (!products.length) return [];
+  const fr = locale === 'fr';
   const insights: string[] = [];
   const totalRev = products.reduce((a, p) => a + p.revenue, 0) || 1;
   const brands = new Map<string, number>();
@@ -297,26 +351,41 @@ export function deterministicInsights(products: Product[]): string[] {
   const ranked = [...brands.entries()].sort((a, b) => b[1] - a[1]);
 
   if (ranked[0]) {
+    const share = Math.round((ranked[0][1] / totalRev) * 100);
     insights.push(
-      `Marque leader : ${ranked[0][0]} (${Math.round((ranked[0][1] / totalRev) * 100)}% du CA). Ancrez le bloc en zone chaude.`
+      fr
+        ? `Marque leader : ${ranked[0][0]} (${share}% du CA). Ancrez le bloc en zone chaude.`
+        : `Leading brand: ${ranked[0][0]} (${share}% of value). Anchor its block in the hot zone.`
     );
   }
   const novelties = products.filter((p) => p.isNew);
   if (novelties.length) {
     insights.push(
-      `${novelties.length} nouveauté(s) détectée(s) — à remonter au niveau des yeux avec facing de lancement.`
+      fr
+        ? `${novelties.length} nouveauté(s) détectée(s) — à remonter au niveau des yeux avec facing de lancement.`
+        : `${novelties.length} new product(s) detected — raise them to eye level with a launch facing.`
     );
   }
   const longTail = ranked.filter(([, rev]) => rev / totalRev < 0.02).length;
   if (longTail > 0) {
-    insights.push(`${longTail} marque(s) < 2% du CA : candidates à la rationalisation (queue de gamme).`);
+    insights.push(
+      fr
+        ? `${longTail} marque(s) < 2% du CA : candidates à la rationalisation (queue de gamme).`
+        : `${longTail} brand(s) below 2% of value: candidates for delisting (long tail).`
+    );
   }
   const bestMargin = [...products].sort((a, b) => b.margin - a.margin)[0];
   if (bestMargin && bestMargin.margin > 0) {
     insights.push(
-      `Meilleure contribution marge : ${bestMargin.brand} — ${bestMargin.name}. Testez la variante « Marge » pour la valoriser.`
+      fr
+        ? `Meilleure contribution marge : ${bestMargin.brand} — ${bestMargin.name}. Testez la variante « Marge » pour la valoriser.`
+        : `Best margin contribution: ${bestMargin.brand} — ${bestMargin.name}. Try the “Margin” variant to leverage it.`
     );
   }
-  insights.push(`${products.length} références sur ${ranked.length} marques prêtes à être placées.`);
+  insights.push(
+    fr
+      ? `${products.length} références sur ${ranked.length} marques prêtes à être placées.`
+      : `${products.length} SKUs across ${ranked.length} brands ready to be placed.`
+  );
   return insights;
 }

@@ -1,26 +1,31 @@
+'use client';
+
 import Link from 'next/link';
 import type { Planogram } from '../lib/types';
+import { T, useLocale } from '../lib/i18n';
 
 export default function BuyerFrame({ plano, locked }: { plano: Planogram; locked: boolean }) {
+  const { locale } = useLocale();
+  const t = T[locale].app;
   const f = plano.buyerFrame;
 
   return (
     <div className={`trame ${locked ? 'is-locked' : ''}`}>
       <div className="trame-head">
-        <h3>Trame de présentation acheteur</h3>
+        <h3>{t.trame}</h3>
         {locked && <span className="lock-pill">🔒 Pro</span>}
       </div>
 
       <div className="trame-body">
         <div className="trame-slide">
-          <p className="trame-eyebrow">Synthèse catégorie</p>
+          <p className="trame-eyebrow">{t.trameEyebrow}</p>
           <h4>{f.headline}</h4>
           <p>{f.categorySummary}</p>
         </div>
 
         <div className="trame-cols">
           <div>
-            <h5>Moves clés</h5>
+            <h5>{t.trameMoves}</h5>
             <ul>
               {f.keyMoves.map((m, i) => (
                 <li key={i}>{m}</li>
@@ -28,7 +33,7 @@ export default function BuyerFrame({ plano, locked }: { plano: Planogram; locked
             </ul>
           </div>
           <div>
-            <h5>Nouveautés</h5>
+            <h5>{t.trameNov}</h5>
             <ul>
               {f.noveltyPitch.map((m, i) => (
                 <li key={i}>{m}</li>
@@ -36,7 +41,7 @@ export default function BuyerFrame({ plano, locked }: { plano: Planogram; locked
             </ul>
           </div>
           <div>
-            <h5>Impact attendu</h5>
+            <h5>{t.trameImpact}</h5>
             <ul>
               {f.expectedImpact.map((m, i) => (
                 <li key={i}>{m}</li>
@@ -49,10 +54,10 @@ export default function BuyerFrame({ plano, locked }: { plano: Planogram; locked
       {locked && (
         <div className="trame-overlay">
           <div className="overlay-card">
-            <h4>Trame acheteur réservée au Pro</h4>
-            <p>Débloquez la trame de présentation prête à défendre en rendez-vous enseigne, et les 4 variantes stratégiques.</p>
+            <h4>{t.trameLockTitle}</h4>
+            <p>{t.trameLockText}</p>
             <Link href="/compte" className="btn btn-primary">
-              Passer en Pro
+              {t.lockCta}
             </Link>
           </div>
         </div>

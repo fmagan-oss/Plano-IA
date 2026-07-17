@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '../lib/supabase/client';
+import { T, useLocale } from '../lib/i18n';
 
 export default function LoginPage() {
   return (
@@ -13,6 +14,8 @@ export default function LoginPage() {
 }
 
 function LoginInner() {
+  const { locale } = useLocale();
+  const t = T[locale].login;
   const supabase = createClient();
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -43,10 +46,8 @@ function LoginInner() {
     <div className="auth-wrap">
       <div className="auth-card">
         <div className="auth-logo" aria-hidden>◧</div>
-        <h1>Se connecter à CatPilot</h1>
-        <p className="muted auth-sub">
-          Entrez votre e-mail : nous vous envoyons un lien de connexion sécurisé (magic link), sans mot de passe.
-        </p>
+        <h1>{t.title}</h1>
+        <p className="muted auth-sub">{t.sub}</p>
 
         {!configured ? (
           <div className="alert alert-warn auth-alert">
@@ -57,18 +58,15 @@ function LoginInner() {
         ) : status === 'sent' ? (
           <div className="auth-sent">
             <div className="auth-check" aria-hidden>✓</div>
-            <h2>Vérifiez votre boîte mail</h2>
-            <p className="muted">
-              Un lien de connexion a été envoyé à <strong>{email}</strong>. Cliquez dessus pour accéder à
-              l’application.
-            </p>
+            <h2>{t.sentTitle}</h2>
+            <p className="muted">{t.sentText(email)}</p>
             <button className="btn btn-ghost" onClick={() => setStatus('idle')}>
-              Utiliser une autre adresse
+              {t.other}
             </button>
           </div>
         ) : (
           <form onSubmit={sendLink} className="auth-form">
-            <label htmlFor="email">Adresse e-mail professionnelle</label>
+            <label htmlFor="email">{t.emailLabel}</label>
             <input
               id="email"
               type="email"
@@ -78,15 +76,15 @@ function LoginInner() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-            {status === 'error' && <p className="auth-error">{message || 'Une erreur est survenue.'}</p>}
+            {status === 'error' && <p className="auth-error">{message || t.error}</p>}
             <button className="btn btn-primary btn-block" disabled={status === 'sending'}>
-              {status === 'sending' ? 'Envoi…' : 'Recevoir mon lien de connexion'}
+              {status === 'sending' ? t.sending : t.submit}
             </button>
           </form>
         )}
 
         <p className="auth-back">
-          <Link href="/">← Retour à l’accueil</Link>
+          <Link href="/">{t.back}</Link>
         </p>
       </div>
     </div>
