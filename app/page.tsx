@@ -28,17 +28,25 @@ export default function LandingPage() {
         </div>
         <div className="hero-visual" aria-hidden>
           <div className="mini-plano">
-            {[...Array(5)].map((_, r) => (
-              <div className="mini-shelf" key={r}>
-                {[...Array(12)].map((_, c) => (
-                  <span
-                    key={c}
-                    className="mini-cell"
-                    style={{ background: HERO_COLORS[(r * 12 + c) % HERO_COLORS.length] }}
-                  />
-                ))}
-              </div>
-            ))}
+            <div className="mini-plano-bar">
+              <span className="mini-plano-dot" />
+              <span className="mini-plano-dot" />
+              <span className="mini-plano-dot" />
+              <span>Planogramme — Rayon Énergisants</span>
+            </div>
+            <div className="mini-plano-body">
+              {HERO_SHELVES.map((shelf, r) => (
+                <div className="mini-shelf" key={r}>
+                  {shelf.map(([color, span], c) => (
+                    <span
+                      key={c}
+                      className="mini-cell"
+                      style={{ background: color, flexGrow: span }}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -182,4 +190,12 @@ export default function LandingPage() {
   );
 }
 
-const HERO_COLORS = ['#2563eb', '#db2777', '#16a34a', '#ea580c', '#7c3aed', '#0891b2'];
+// Contiguous brand blocks per shelf — [color, relative width]. Mirrors how a
+// real planogram groups facings by brand.
+const HERO_SHELVES: [string, number][][] = [
+  [['#ca8a04', 6], ['#ca8a04', 3], ['#0891b2', 3]],
+  [['#7c3aed', 4], ['#7c3aed', 5], ['#ca8a04', 3]],
+  [['#7c3aed', 5], ['#7c3aed', 4], ['#2563eb', 3]],
+  [['#2563eb', 3], ['#16a34a', 4], ['#16a34a', 3], ['#0891b2', 2]],
+  [['#0284c7', 3], ['#16a34a', 3], ['#db2777', 4], ['#db2777', 2]],
+];
