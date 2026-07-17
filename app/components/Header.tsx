@@ -2,14 +2,13 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { usePro } from '../providers';
 import { createClient } from '../lib/supabase/client';
 
 export default function Header() {
-  const { pro, setPro } = usePro();
   const [email, setEmail] = useState<string | null>(null);
+  const [pro, setPro] = useState(false);
   const [authReady, setAuthReady] = useState(false);
-  const configured = typeof window !== 'undefined' && createClient() !== null;
+  const [configured, setConfigured] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -17,13 +16,28 @@ export default function Header() {
       setAuthReady(true);
       return;
     }
-    supabase.auth.getUser().then(({ data }) => {
-      setEmail(data.user?.email ?? null);
+    setConfigured(true);
+
+    async function load() {
+      const {
+        data: { user },
+      } = await supabase!.auth.getUser();
+      setEmail(user?.email ?? null);
+      if (user) {
+        const { data: profile } = await supabase!
+          .from('profiles')
+          .select('plan, subscription_status')
+          .eq('id', user.id)
+          .single();
+        setPro(profile?.plan === 'pro' && profile?.subscription_status === 'active');
+      } else {
+        setPro(false);
+      }
       setAuthReady(true);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setEmail(session?.user?.email ?? null);
-    });
+    }
+    load();
+
+    const { data: sub } = supabase.auth.onAuthStateChange(() => load());
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -42,18 +56,14 @@ export default function Header() {
         </nav>
 
         <div className="header-session">
-          {/* Pro simulation — still needed until payments (M3) and the real
-              server entitlement (M4) are wired. */}
-          <label className="pro-toggle" title="Simulation du statut Pro (remplacé par la session serveur en M4)">
-            <input type="checkbox" checked={pro} onChange={(e) => setPro(e.target.checked)} />
-            <span>Simuler&nbsp;Pro</span>
-          </label>
-          <span className={`plan-badge ${pro ? 'is-pro' : 'is-free'}`}>{pro ? 'Pro' : 'Démo'}</span>
+          {configured && authReady && email && (
+            <span className={`plan-badge ${pro ? 'is-pro' : 'is-free'}`}>{pro ? 'Pro' : 'Gratuit'}</span>
+          )}
 
           {configured && authReady && (
             email ? (
               <div className="session-user">
-                <span className="session-email" title={email}>{email}</span>
+                <Link href="/compte" className="session-email" title={email}>{email}</Link>
                 <form action="/auth/signout" method="post">
                   <button className="btn btn-ghost btn-sm" type="submit">Se déconnecter</button>
                 </form>

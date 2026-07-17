@@ -1,8 +1,7 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePro } from '../providers';
 import { parseWorkbook } from '../lib/parse';
 import { generatePlanogram, STRATEGIES, DEFAULT_FIXTURE } from '../lib/planogram';
 import { SAMPLE_PRODUCTS, SAMPLE_FILENAME } from '../lib/sample';
@@ -14,8 +13,7 @@ import Copilot from './Copilot';
 
 const STRATEGY_ORDER: StrategyKey[] = ['balanced', 'rotation', 'margin', 'revenue'];
 
-export default function CatPilotApp() {
-  const { pro } = usePro();
+export default function CatPilotApp({ pro }: { pro: boolean }) {
   const [dataset, setDataset] = useState<ParsedDataset | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +23,11 @@ export default function CatPilotApp() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const maxVariants = pro ? 4 : 1;
+
+  // Expose the server-derived entitlement for debugging (read-only mirror).
+  useEffect(() => {
+    (window as unknown as { PRO: boolean }).PRO = pro;
+  }, [pro]);
 
   async function handleFile(file: File) {
     setError(null);
@@ -259,7 +262,7 @@ function VariantLock() {
           La démo donne accès à <strong>1 variante</strong>. Passez en Pro pour comparer les 4 stratégies
           (Équilibré, Rotation, Marge, CA) et débloquer la trame acheteur.
         </p>
-        <Link href="/#offres" className="btn btn-primary">
+        <Link href="/compte" className="btn btn-primary">
           Passer en Pro
         </Link>
       </div>
