@@ -1,22 +1,28 @@
+'use client';
+
 import type { Planogram } from '../lib/types';
+import { T, useLocale } from '../lib/i18n';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 export default function PlanDeMasse({ plano }: { plano: Planogram }) {
+  const { locale } = useLocale();
+  const t = T[locale].app;
+
   return (
     <div className="masse">
       <div className="masse-head">
-        <h3>Plan de masse</h3>
-        <span className="muted">Répartition du linéaire par marque</span>
+        <h3>{t.masse}</h3>
+        <span className="muted">{t.masseSub}</span>
       </div>
 
-      <div className="masse-bar" role="img" aria-label="Répartition du linéaire par marque">
+      <div className="masse-bar" role="img" aria-label={t.masseSub}>
         {plano.brandBlocks.map((b) => (
           <span
             key={b.brand}
             className="masse-seg"
             style={{ width: pct(b.share), background: b.color }}
-            title={`${b.brand} — ${pct(b.share)} du linéaire`}
+            title={`${b.brand} — ${pct(b.share)}`}
           >
             {b.share > 0.08 && <span>{b.brand}</span>}
           </span>
@@ -26,12 +32,12 @@ export default function PlanDeMasse({ plano }: { plano: Planogram }) {
       <table className="masse-table">
         <thead>
           <tr>
-            <th>Marque</th>
-            <th>Réf.</th>
-            <th>Facings</th>
-            <th>% linéaire</th>
-            <th>% CA</th>
-            <th>Écart</th>
+            <th>{t.thBrand}</th>
+            <th>{t.thRefs}</th>
+            <th>{t.thFacings}</th>
+            <th>{t.thShare}</th>
+            <th>{t.thRev}</th>
+            <th>{t.thGap}</th>
           </tr>
         </thead>
         <tbody>
@@ -56,10 +62,7 @@ export default function PlanDeMasse({ plano }: { plano: Planogram }) {
           })}
         </tbody>
       </table>
-      <p className="masse-help">
-        « Écart » = part de linéaire − part de CA. Un écart positif signale une marque sur-facée vs son poids
-        commercial ; négatif, une opportunité de gagner du linéaire.
-      </p>
+      <p className="masse-help">{t.masseHelp}</p>
     </div>
   );
 }

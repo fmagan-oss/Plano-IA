@@ -1,13 +1,17 @@
+'use client';
+
 import type { Planogram } from '../lib/types';
+import { T, useLocale } from '../lib/i18n';
 
 export default function PlanogramView({ plano }: { plano: Planogram }) {
+  const { locale } = useLocale();
+  const t = T[locale].app;
+
   return (
     <div className="plano">
       <div className="plano-head">
-        <h3>Planogramme au facing</h3>
-        <span className="muted">
-          {plano.totalFacings} facings · {plano.shelves.length} niveaux
-        </span>
+        <h3>{t.plano}</h3>
+        <span className="muted">{t.planoMeta(plano.totalFacings, plano.shelves.length)}</span>
       </div>
       <div className="plano-fixture">
         {plano.shelves.map((shelf) => (
@@ -15,7 +19,7 @@ export default function PlanogramView({ plano }: { plano: Planogram }) {
             <div className="shelf-label">{shelf.label}</div>
             <div className="shelf-cells">
               {shelf.cells.length === 0 ? (
-                <div className="shelf-empty">— espace libre —</div>
+                <div className="shelf-empty">{t.shelfEmpty}</div>
               ) : (
                 shelf.cells.map((cell, i) => (
                   <div
@@ -23,7 +27,6 @@ export default function PlanogramView({ plano }: { plano: Planogram }) {
                     className="facing-cell"
                     style={{
                       flexGrow: cell.facings,
-                      // brand color already assigned in brandBlocks; recompute via block lookup
                       background: cellColor(plano, cell.product.brand),
                     }}
                     title={`${cell.product.brand} — ${cell.product.name} (${cell.facings} facing${cell.facings > 1 ? 's' : ''})`}

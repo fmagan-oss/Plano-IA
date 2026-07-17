@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import type { Product } from '../lib/types';
 import { deterministicInsights } from '../lib/planogram';
+import { T, useLocale } from '../lib/i18n';
 
 /** Compact, token-light summary of the dataset sent to the server proxy. */
 function buildContext(products: Product[]): string {
@@ -23,7 +24,9 @@ function buildContext(products: Product[]): string {
 }
 
 export default function Copilot({ products, pro }: { products: Product[]; pro: boolean }) {
-  const insights = deterministicInsights(products);
+  const { locale } = useLocale();
+  const t = T[locale].app;
+  const insights = deterministicInsights(products, locale);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,8 +60,8 @@ export default function Copilot({ products, pro }: { products: Product[]; pro: b
   return (
     <div className="copilot">
       <div className="copilot-head">
-        <h3>Copilote</h3>
-        <span className="muted">Lecture automatique du rayon</span>
+        <h3>{t.copilot}</h3>
+        <span className="muted">{t.copilotSub}</span>
       </div>
 
       <ul className="copilot-insights">
@@ -69,26 +72,26 @@ export default function Copilot({ products, pro }: { products: Product[]; pro: b
 
       <div className={`copilot-ai ${pro ? '' : 'is-locked'}`}>
         <div className="copilot-ai-head">
-          <span>Copilote IA connecté</span>
+          <span>{t.copilotAi}</span>
           {!pro && <span className="lock-pill sm">🔒 Pro</span>}
         </div>
         {pro ? (
           <form onSubmit={ask} className="copilot-form">
             <input
               type="text"
-              placeholder="Ex. Comment défendre la nouveauté Prime face à l’acheteur ?"
+              placeholder={t.copilotPlaceholder}
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
             />
             <button className="btn btn-primary" disabled={loading}>
-              {loading ? '…' : 'Demander'}
+              {loading ? '…' : t.copilotAsk}
             </button>
           </form>
         ) : (
           <div className="copilot-locked">
-            <p>Posez vos questions à un copilote IA connecté à vos données (analyse, argumentaire acheteur).</p>
+            <p>{t.copilotLocked}</p>
             <Link href="/compte" className="btn btn-ghost">
-              Débloquer avec Pro
+              {t.copilotUnlock}
             </Link>
           </div>
         )}

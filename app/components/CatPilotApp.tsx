@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { parseWorkbook } from '../lib/parse';
-import { generatePlanogram, STRATEGIES, DEFAULT_FIXTURE } from '../lib/planogram';
+import { parseWorkbook, FIELD_LABELS } from '../lib/parse';
+import { generatePlanogram, STRATEGY_TEXT, DEFAULT_FIXTURE } from '../lib/planogram';
 import { SAMPLE_PRODUCTS, SAMPLE_FILENAME } from '../lib/sample';
 import type { Fixture, ParsedDataset, StrategyKey } from '../lib/types';
+import { T, useLocale } from '../lib/i18n';
 import PlanogramView from './PlanogramView';
 import PlanDeMasse from './PlanDeMasse';
 import BuyerFrame from './BuyerFrame';
@@ -14,6 +15,8 @@ import Copilot from './Copilot';
 const STRATEGY_ORDER: StrategyKey[] = ['balanced', 'rotation', 'margin', 'revenue'];
 
 export default function CatPilotApp({ pro }: { pro: boolean }) {
+  const { locale } = useLocale();
+  const t = T[locale].app;
   const [dataset, setDataset] = useState<ParsedDataset | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -33,18 +36,23 @@ export default function CatPilotApp({ pro }: { pro: boolean }) {
     setError(null);
     setBusy(true);
     try {
-      const buf = await file.arrayBuffer();
-      const parsed = parseWorkbook(buf, file.name);
-      if (!parsed.products.length) {
-        setError('Aucune donnée exploitable dans ce fichier. Vérifiez qu’il contient au moins une colonne marque ou produit.');
-        setBusy(false);
-        return;
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      if (!['xlsx', 'xls', 'csv', 'txt'].includes(ext)) {
+        throw new Error(
+          locale === 'fr'
+            ? `Extension « .${ext} » non prise en charge. Formats acceptés : Excel (.xlsx, .xls) ou CSV.`
+            : `Unsupported “.${ext}” extension. Accepted formats: Excel (.xlsx, .xls) or CSV.`
+        );
       }
+      const buf = await file.arrayBuffer();
+      // parseWorkbook lève des erreurs précises (fichier illisible, feuille
+      // vide, colonnes d'identification absentes…) affichées telles quelles.
+      const parsed = parseWorkbook(buf, file.name, locale);
       setDataset(parsed);
       setFileName(file.name);
       setActive('balanced');
     } catch (e) {
-      setError('Impossible de lire le fichier. Formats acceptés : .xlsx, .xls, .csv.');
+      setError(e instanceof Error && e.message ? e.message : 'Erreur de lecture.');
     } finally {
       setBusy(false);
     }
@@ -56,6 +64,7 @@ export default function CatPilotApp({ pro }: { pro: boolean }) {
       products: SAMPLE_PRODUCTS,
       detectedColumns: {
         brand: 'Marque',
+        ean: 'EAN',
         name: 'Produit',
         segment: 'Segment',
         revenue: 'CA (€)',
@@ -76,17 +85,17 @@ export default function CatPilotApp({ pro }: { pro: boolean }) {
 
   const plano = useMemo(() => {
     if (!products.length) return null;
-    return generatePlanogram(products, active, fixture);
-  }, [products, active, fixture]);
+    return generatePlanogram(products, active, fixture, locale);
+  }, [products, active, fixture, locale]);
 
   return (
     <div className="app">
       <div className="app-head">
         <div>
-          <h1>Application CatPilot</h1>
-          <p className="muted">Générateur de planogrammes au facing à partir d’un export panel.</p>
+          <h1>{t.title}</h1>
+          <p className="muted">{t.sub}</p>
         </div>
-        <span className={`plan-badge ${pro ? 'is-pro' : 'is-free'}`}>{pro ? 'Pro' : 'Démo'}</span>
+        <span className={`plan-badge ${pro ? 'is-pro' : 'is-free'}`}>{pro ? t.pro : t.demo}</span>
       </div>
 
       {!dataset && (
@@ -118,14 +127,36 @@ export default function CatPilotApp({ pro }: { pro: boolean }) {
             <div className="dataset-info">
               <strong>{fileName}</strong>
               <span className="muted">
-                {products.length} références · {new Set(products.map((p) => p.brand)).size} marques ·{' '}
-                {products.filter((p) => p.isNew).length} nouveauté(s)
+                {t.dsRefs(products.length, new Set(products.map((p) => p.brand)).size, products.filter((p) => p.isNew).length)}
               </span>
             </div>
             <div className="dataset-actions">
-              <FixtureControls fixture={fixture} setFixture={setFixture} />
+              <div className="fixture-controls">
+                <label>
+                  {t.shelves}
+                  <select
+                    value={fixture.shelves}
+                    onChange={(e) => setFixture({ ...fixture, shelves: Number(e.target.value) })}
+                  >
+                    {[3, 4, 5, 6, 7].map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {t.facingsPerShelf}
+                  <select
+                    value={fixture.facingsPerShelf}
+                    onChange={(e) => setFixture({ ...fixture, facingsPerShelf: Number(e.target.value) })}
+                  >
+                    {[8, 10, 12, 14, 16, 20].map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <button className="btn btn-ghost" onClick={() => inputRef.current?.click()}>
-                Changer de fichier
+                {t.changeFile}
               </button>
             </div>
           </div>
@@ -138,10 +169,25 @@ export default function CatPilotApp({ pro }: { pro: boolean }) {
             </div>
           )}
 
+          <details className="mapping">
+            <summary>{t.mapping}</summary>
+            <ul className="mapping-list">
+              {Object.entries(FIELD_LABELS[locale]).map(([field, label]) => {
+                const header = dataset.detectedColumns[field];
+                return (
+                  <li key={field} className={header ? '' : 'is-missing'}>
+                    <span className="mapping-field">{label}</span>
+                    <span className="mapping-header">{header ? `« ${header} »` : t.notDetected}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+
           {/* Variant tabs */}
           <div className="variants">
             {STRATEGY_ORDER.map((key, i) => {
-              const s = STRATEGIES[key];
+              const s = STRATEGY_TEXT[locale][key];
               const locked = i >= maxVariants;
               return (
                 <button
@@ -155,10 +201,16 @@ export default function CatPilotApp({ pro }: { pro: boolean }) {
               );
             })}
           </div>
-          <p className="variant-desc">{STRATEGIES[active].description}</p>
+          <p className="variant-desc">{STRATEGY_TEXT[locale][active].description}</p>
 
           {activeLocked ? (
-            <VariantLock />
+            <div className="variant-lock">
+              <div className="overlay-card">
+                <h4>{t.lockTitle}</h4>
+                <p>{t.lockText}</p>
+                <Link href="/compte" className="btn btn-primary">{t.lockCta}</Link>
+              </div>
+            </div>
           ) : (
             plano && (
               <div className="results">
@@ -188,6 +240,8 @@ function Uploader({
   onFile: (f: File) => void;
   onSample: () => void;
 }) {
+  const { locale } = useLocale();
+  const t = T[locale].app;
   const [drag, setDrag] = useState(false);
   return (
     <div
@@ -205,67 +259,17 @@ function Uploader({
       }}
     >
       <div className="uploader-icon" aria-hidden>⬆</div>
-      <h2>Importez votre export panel</h2>
-      <p className="muted">Glissez un fichier Excel/CSV (Nielsen, Circana…) ou parcourez vos fichiers.</p>
+      <h2>{t.upTitle}</h2>
+      <p className="muted">{t.upText}</p>
       <div className="uploader-actions">
         <button className="btn btn-primary" onClick={onPick} disabled={busy}>
-          {busy ? 'Lecture…' : 'Choisir un fichier'}
+          {busy ? t.upBusy : t.upBtn}
         </button>
         <button className="btn btn-ghost" onClick={onSample} disabled={busy}>
-          Charger le jeu d’exemple
+          {t.upSample}
         </button>
       </div>
-      <p className="uploader-formats">Colonnes reconnues automatiquement : marque, produit, segment, CA, volume, marge, prix, nouveauté.</p>
-    </div>
-  );
-}
-
-function FixtureControls({ fixture, setFixture }: { fixture: Fixture; setFixture: (f: Fixture) => void }) {
-  return (
-    <div className="fixture-controls">
-      <label>
-        Niveaux
-        <select
-          value={fixture.shelves}
-          onChange={(e) => setFixture({ ...fixture, shelves: Number(e.target.value) })}
-        >
-          {[3, 4, 5, 6, 7].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Facings/niveau
-        <select
-          value={fixture.facingsPerShelf}
-          onChange={(e) => setFixture({ ...fixture, facingsPerShelf: Number(e.target.value) })}
-        >
-          {[8, 10, 12, 14, 16, 20].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </label>
-    </div>
-  );
-}
-
-function VariantLock() {
-  return (
-    <div className="variant-lock">
-      <div className="overlay-card">
-        <h4>Variante réservée au Pro</h4>
-        <p>
-          La démo donne accès à <strong>1 variante</strong>. Passez en Pro pour comparer les 4 stratégies
-          (Équilibré, Rotation, Marge, CA) et débloquer la trame acheteur.
-        </p>
-        <Link href="/compte" className="btn btn-primary">
-          Passer en Pro
-        </Link>
-      </div>
+      <p className="uploader-formats">{t.upFormats}</p>
     </div>
   );
 }

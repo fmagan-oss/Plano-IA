@@ -5,6 +5,8 @@ export interface Product {
   id: string;
   brand: string;
   name: string;
+  /** Code EAN/gencod si présent dans le fichier (vision à l'EAN). */
+  ean?: string;
   segment: string;
   /** Chiffre d'affaires (value sales, €). */
   revenue: number;

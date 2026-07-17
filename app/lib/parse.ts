@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { ParsedDataset, Product } from './types';
+import type { Locale } from './i18n';
 
 /**
  * Fuzzy column detection for Nielsen / Circana style exports.
@@ -8,13 +9,56 @@ import type { ParsedDataset, Product } from './types';
  */
 const COLUMN_ALIASES: Record<string, string[]> = {
   brand: ['marque', 'brand', 'fabricant', 'fournisseur', 'manufacturer', 'enseigne marque'],
-  name: ['produit', 'reference', 'référence', 'libelle', 'libellé', 'product', 'sku', 'article', 'designation', 'désignation', 'ean'],
+  ean: ['ean', 'ean13', 'gencod', 'gencode', 'code barre', 'code-barre', 'barcode', 'upc'],
+  name: ['produit', 'reference', 'référence', 'libelle', 'libellé', 'product', 'sku', 'article', 'designation', 'désignation'],
   segment: ['segment', 'sous-segment', 'categorie', 'catégorie', 'category', 'famille', 'rayon', 'univers'],
   revenue: ['ca', "chiffre d'affaires", 'chiffre d affaires', 'ventes valeur', 'sales value', 'value', 'valeur', 'ca ttc', 'ca ht', 'revenue', 'turnover'],
   volume: ['volume', 'unites', 'unités', 'units', 'quantite', 'quantité', 'qty', 'ventes volume', 'ventes unites', 'pieces'],
   margin: ['marge', 'margin', 'profit', 'marge brute', 'marge %', 'taux de marge'],
   price: ['prix', 'price', 'pvc', 'prix de vente', 'tarif', 'prix unitaire'],
   isNew: ['nouveaute', 'nouveauté', 'nouveau', 'new', 'innovation', 'lancement'],
+};
+
+/** Libellés métier utilisés dans les diagnostics et l'affichage du mapping. */
+export const FIELD_LABELS: Record<Locale, Record<string, string>> = {
+  fr: {
+    brand: 'Marque', ean: 'EAN / gencod', name: 'Libellé produit', segment: 'Segment',
+    revenue: 'CA', volume: 'Volume', margin: 'Marge', price: 'Prix', isNew: 'Nouveauté',
+  },
+  en: {
+    brand: 'Brand', ean: 'EAN / barcode', name: 'Product label', segment: 'Segment',
+    revenue: 'Value', volume: 'Volume', margin: 'Margin', price: 'Price', isNew: 'Novelty',
+  },
+};
+
+/** Messages de diagnostic localisés. */
+const DIAG: Record<Locale, Record<string, string>> = {
+  fr: {
+    unreadable: "n'a pas pu être lu comme un classeur. Formats pris en charge : .xlsx, .xls, .csv.",
+    noSheet: 'ne contient aucune feuille de calcul.',
+    emptySheet: 'est vide : aucune ligne trouvée.',
+    eanAndNameMissing: 'Vision à l’EAN manquante : aucune colonne EAN/gencod ni libellé produit détectée — les références ne peuvent pas être identifiées individuellement.',
+    eanMissing: 'Vision à l’EAN manquante : colonne EAN/gencod non détectée — l’identification des références se fait par libellé produit.',
+    brandMissing: 'Colonne « Marque / fabricant » non détectée — regroupement par blocs marque impossible.',
+    noKpi: 'Ni CA ni volume détectés — l’allocation de facing sera uniforme (non pondérée).',
+    revenueMissing: 'Colonne « CA » non détectée — la variante CA et l’écart linéaire/CA seront indisponibles.',
+    volumeMissing: 'Colonne « Volume » non détectée — la variante Rotation sera moins fiable.',
+    marginMissing: 'Colonne « Marge » non détectée — la variante Marge utilisera une pondération par défaut.',
+    newMissing: 'Colonne « Nouveauté » non détectée — aucune innovation ne sera mise en avant.',
+  },
+  en: {
+    unreadable: 'could not be read as a workbook. Supported formats: .xlsx, .xls, .csv.',
+    noSheet: 'contains no worksheet.',
+    emptySheet: 'is empty: no rows found.',
+    eanAndNameMissing: 'EAN-level vision missing: no EAN/barcode nor product-label column detected — SKUs cannot be identified individually.',
+    eanMissing: 'EAN-level vision missing: EAN/barcode column not detected — SKUs are identified by product label instead.',
+    brandMissing: '“Brand / manufacturer” column not detected — brand blocking is impossible.',
+    noKpi: 'Neither value nor volume detected — facing allocation will be uniform (unweighted).',
+    revenueMissing: '“Value” column not detected — the Value variant and the shelf/value gap will be unavailable.',
+    volumeMissing: '“Volume” column not detected — the Rotation variant will be less reliable.',
+    marginMissing: '“Margin” column not detected — the Margin variant will use a default weighting.',
+    newMissing: '“Novelty” column not detected — no innovation will be highlighted.',
+  },
 };
 
 function normalize(s: string): string {
@@ -58,16 +102,29 @@ function toBool(v: unknown): boolean {
   return ['1', 'oui', 'yes', 'true', 'vrai', 'x', 'new', 'nouveau', 'nouveaute'].includes(s);
 }
 
-/** Parse an ArrayBuffer (xlsx/xls/csv) into a normalized dataset. */
-export function parseWorkbook(buffer: ArrayBuffer, fileName = 'fichier'): ParsedDataset {
-  const wb = XLSX.read(buffer, { type: 'array' });
+/**
+ * Parse an ArrayBuffer (xlsx/xls/csv) into a normalized dataset.
+ * Throws an Error with a precise, user-facing French message when the file is
+ * structurally unusable; recoverable issues land in `warnings`.
+ */
+export function parseWorkbook(buffer: ArrayBuffer, fileName = 'fichier', locale: Locale = 'fr'): ParsedDataset {
+  const D = DIAG[locale];
+  let wb: XLSX.WorkBook;
+  try {
+    wb = XLSX.read(buffer, { type: 'array' });
+  } catch {
+    throw new Error(`« ${fileName} » ${D.unreadable}`);
+  }
+  if (!wb.SheetNames.length) {
+    throw new Error(`« ${fileName} » ${D.noSheet}`);
+  }
   const sheetName = wb.SheetNames[0];
   const sheet = wb.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { header: 1, blankrows: false }) as unknown as unknown[][];
 
   const warnings: string[] = [];
   if (!rows.length) {
-    return { products: [], detectedColumns: {}, warnings: ['Le fichier est vide.'] };
+    throw new Error(`« ${sheetName} » ${D.emptySheet}`);
   }
 
   // Find the header row: first row that has >= 2 non-empty text cells.
@@ -89,11 +146,23 @@ export function parseWorkbook(buffer: ArrayBuffer, fileName = 'fichier'): Parsed
     detectedColumns[field] = i >= 0 ? headers[i] : null;
   }
 
-  if (idx.brand < 0) warnings.push('Colonne « Marque » non détectée — regroupement par marque limité.');
-  if (idx.name < 0) warnings.push('Colonne « Produit » non détectée — libellés génériques utilisés.');
-  if (idx.revenue < 0 && idx.volume < 0) {
-    warnings.push('Ni CA ni volume détectés — allocation basée sur une répartition uniforme.');
+  // --- Diagnostics métier précis ---
+  if (idx.ean < 0 && idx.name < 0) {
+    warnings.push(D.eanAndNameMissing);
+  } else if (idx.ean < 0) {
+    warnings.push(D.eanMissing);
   }
+  if (idx.brand < 0) {
+    warnings.push(D.brandMissing);
+  }
+  if (idx.revenue < 0 && idx.volume < 0) {
+    warnings.push(D.noKpi);
+  } else {
+    if (idx.revenue < 0) warnings.push(D.revenueMissing);
+    if (idx.volume < 0) warnings.push(D.volumeMissing);
+  }
+  if (idx.margin < 0) warnings.push(D.marginMissing);
+  if (idx.isNew < 0) warnings.push(D.newMissing);
 
   const products: Product[] = [];
   let dropped = 0;
@@ -102,8 +171,9 @@ export function parseWorkbook(buffer: ArrayBuffer, fileName = 'fichier'): Parsed
     if (!row || row.every((c) => c == null || String(c).trim() === '')) continue;
 
     const brand = idx.brand >= 0 ? String(row[idx.brand] ?? '').trim() : '';
+    const ean = idx.ean >= 0 ? String(row[idx.ean] ?? '').trim() : '';
     const name = idx.name >= 0 ? String(row[idx.name] ?? '').trim() : '';
-    if (!brand && !name) {
+    if (!brand && !name && !ean) {
       dropped++;
       continue;
     }
@@ -120,7 +190,8 @@ export function parseWorkbook(buffer: ArrayBuffer, fileName = 'fichier'): Parsed
     products.push({
       id: `p${products.length}`,
       brand: brand || 'Sans marque',
-      name: name || `Réf. ${products.length + 1}`,
+      name: name || (ean ? `EAN ${ean}` : `Réf. ${products.length + 1}`),
+      ean: ean || undefined,
       segment: idx.segment >= 0 ? String(row[idx.segment] ?? '').trim() || 'Général' : 'Général',
       revenue,
       volume,
@@ -130,8 +201,21 @@ export function parseWorkbook(buffer: ArrayBuffer, fileName = 'fichier'): Parsed
     });
   }
 
-  if (dropped > 0) warnings.push(`${dropped} ligne(s) ignorée(s) (sans marque ni libellé).`);
-  if (!products.length) warnings.push('Aucune ligne produit exploitable trouvée.');
+  if (dropped > 0) {
+    warnings.push(
+      locale === 'fr'
+        ? `${dropped} ligne(s) ignorée(s) : ni marque, ni EAN, ni libellé produit renseignés.`
+        : `${dropped} row(s) skipped: no brand, EAN or product label filled in.`
+    );
+  }
+  if (!products.length) {
+    const found = headers.filter(Boolean).map((h) => `« ${h} »`).join(', ');
+    throw new Error(
+      locale === 'fr'
+        ? `Aucune ligne produit exploitable dans « ${fileName} ». Colonnes trouvées : ${found || 'aucune'}. Il faut au minimum une colonne marque, EAN ou libellé produit.`
+        : `No usable product row in “${fileName}”. Columns found: ${found || 'none'}. At least a brand, EAN or product-label column is required.`
+    );
+  }
 
   return { products, detectedColumns, warnings };
 }

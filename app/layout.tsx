@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Header from './components/Header';
+import Footer from './components/Footer';
+import { LocaleProvider } from './lib/i18n';
 
 export const metadata: Metadata = {
   title: 'CatPilot — Le category management assisté, du fichier au planogramme',
@@ -19,18 +21,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr">
       <body>
-        <Header />
-        <main>{children}</main>
-        <footer className="site-footer">
-          <div className="footer-inner">
-            <span>© {new Date().getFullYear()} CatPilot — Category management assisté.</span>
-            <span className="footer-links">
-              <a href="/#offres">Offres</a>
-              <a href="/app">Application</a>
-              <a href="mailto:contact@catpilot.app">Contact</a>
-            </span>
-          </div>
-        </footer>
+        <LocaleProvider>
+          <Header />
+          <main>{children}</main>
+          <Footer />
+        </LocaleProvider>
       </body>
     </html>
   );
