@@ -5,26 +5,53 @@ import { useState } from 'react';
 import type { Product } from '../lib/types';
 import { deterministicInsights } from '../lib/planogram';
 
+/** Compact, token-light summary of the dataset sent to the server proxy. */
+function buildContext(products: Product[]): string {
+  const byBrand = new Map<string, { rev: number; vol: number; n: number; nw: number }>();
+  for (const p of products) {
+    const b = byBrand.get(p.brand) ?? { rev: 0, vol: 0, n: 0, nw: 0 };
+    b.rev += p.revenue;
+    b.vol += p.volume;
+    b.n += 1;
+    if (p.isNew) b.nw += 1;
+    byBrand.set(p.brand, b);
+  }
+  const lines = [...byBrand.entries()]
+    .sort((a, b) => b[1].rev - a[1].rev)
+    .map(([brand, s]) => `- ${brand}: CA ${Math.round(s.rev)}€, ${s.n} réf, ${s.nw} nouveauté(s)`);
+  return `Rayon de ${products.length} références sur ${byBrand.size} marques.\n${lines.join('\n')}`;
+}
+
 export default function Copilot({ products, pro }: { products: Product[]; pro: boolean }) {
   const insights = deterministicInsights(products);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // M5 will point this at the server proxy /api/copilot (Anthropic key kept
-  // server-side). For now the connected copilot is a Pro teaser.
   async function ask(e: React.FormEvent) {
     e.preventDefault();
     if (!pro || !question.trim()) return;
     setLoading(true);
     setAnswer(null);
-    // Placeholder until M5 wires /api/copilot.
-    setTimeout(() => {
-      setAnswer(
-        "Le copilote IA connecté sera branché au jalon M5 (proxy serveur /api/copilot, clé Anthropic côté serveur uniquement). En attendant, appuyez-vous sur les recommandations déterministes ci-dessus."
-      );
+    setError(null);
+    try {
+      const res = await fetch('/api/copilot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: question.trim(), context: buildContext(products) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Le copilote est indisponible.');
+      } else {
+        setAnswer(data.answer);
+      }
+    } catch {
+      setError('Impossible de contacter le copilote.');
+    } finally {
       setLoading(false);
-    }, 400);
+    }
   }
 
   return (
@@ -60,11 +87,12 @@ export default function Copilot({ products, pro }: { products: Product[]; pro: b
         ) : (
           <div className="copilot-locked">
             <p>Posez vos questions à un copilote IA connecté à vos données (analyse, argumentaire acheteur).</p>
-            <Link href="/#offres" className="btn btn-ghost">
+            <Link href="/compte" className="btn btn-ghost">
               Débloquer avec Pro
             </Link>
           </div>
         )}
+        {error && <p className="copilot-answer copilot-error">{error}</p>}
         {answer && <p className="copilot-answer">{answer}</p>}
       </div>
     </div>

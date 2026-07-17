@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { CheckoutButton } from './components/BillingButtons';
 
 export default function LandingPage() {
   return (
@@ -135,9 +136,7 @@ export default function LandingPage() {
               <li>Copilote IA connecté</li>
               <li>Export & facturation B2B</li>
             </ul>
-            <Link href="/app" className="btn btn-primary btn-block">
-              Passer en Pro
-            </Link>
+            <CheckoutButton plan="monthly">Passer en Pro</CheckoutButton>
           </article>
 
           <article className="price-card">
@@ -151,9 +150,9 @@ export default function LandingPage() {
               <li>Facture annuelle unique</li>
               <li>Support prioritaire</li>
             </ul>
-            <Link href="/app" className="btn btn-ghost btn-block">
+            <CheckoutButton plan="yearly" className="btn btn-ghost btn-block">
               Choisir l’annuel
-            </Link>
+            </CheckoutButton>
           </article>
         </div>
 

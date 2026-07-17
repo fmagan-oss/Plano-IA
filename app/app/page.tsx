@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import CatPilotApp from '../components/CatPilotApp';
 import { createClient } from '../lib/supabase/server';
-import { getOrCreateProfile } from '../lib/profile';
+import { getOrCreateProfile, isProActive } from '../lib/profile';
 
 export const metadata = {
   title: 'Application — CatPilot',
@@ -10,10 +10,10 @@ export const metadata = {
 export default async function AppPage() {
   const supabase = await createClient();
 
-  // When Supabase is configured, the app is a protected route: unauthenticated
-  // visitors are sent to the magic-link sign-in. When it is NOT configured
-  // (e.g. before env vars are set locally), the app stays open so it remains
-  // demoable — the guard activates automatically once auth is wired.
+  // The Pro entitlement is the SERVER's source of truth (Supabase profile,
+  // mirrored from Stripe via webhook). No client-side simulation.
+  let pro = false;
+
   if (supabase) {
     const {
       data: { user },
@@ -23,9 +23,15 @@ export default async function AppPage() {
       redirect('/login');
     }
 
-    // Ensure the profile row exists (also created by a DB trigger on signup).
-    await getOrCreateProfile(supabase, user);
+    const profile = await getOrCreateProfile(supabase, user);
+    pro = isProActive(profile);
   }
 
-  return <CatPilotApp />;
+  // Local preview escape hatch (off by default). Lets you demo Pro features
+  // without a live Stripe subscription. NOT a client toggle — set server-side.
+  if (process.env.NEXT_PUBLIC_DEV_FORCE_PRO === '1') {
+    pro = true;
+  }
+
+  return <CatPilotApp pro={pro} />;
 }

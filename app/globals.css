@@ -478,6 +478,32 @@ main { min-height: 60vh; }
 .overlay-card p { color: var(--text-2); font-size: 0.92rem; margin-bottom: 1.1rem; }
 .variant-lock { display: grid; place-items: center; padding: 2.5rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 
+/* ---------- Account / billing ---------- */
+.account { max-width: 780px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+.account-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.4rem; }
+.account-head h1 { font-size: 1.6rem; }
+.account-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.6rem;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1.2rem;
+}
+.account-card h2 { font-size: 1.15rem; margin-bottom: 0.4rem; }
+.account-dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem 1.5rem; margin: 0; }
+.account-dl dt { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.account-dl dd { margin: 0.2rem 0 0; font-weight: 600; }
+.account-actions { display: flex; gap: 0.8rem; margin-top: 1.1rem; flex-wrap: wrap; }
+.account-plans { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.2rem; }
+.account-plan { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1.1rem 1.2rem; }
+.account-plan h3 { font-size: 1.05rem; }
+.account-plan .price { font-size: 1.4rem; font-weight: 800; margin: 0.3rem 0 0.9rem; }
+.account-plan .price span { font-size: 0.8rem; font-weight: 500; color: var(--muted); }
+.account-quote { margin-top: 1.1rem; font-size: 0.9rem; color: var(--text-2); }
+.billing-error { color: var(--err); font-size: 0.85rem; margin-top: 0.5rem; }
+.copilot-error { background: var(--err-bg); color: var(--err); }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
   .hero { grid-template-columns: 1fr; }
@@ -487,4 +513,5 @@ main { min-height: 60vh; }
   .header-nav { display: none; }
   .price-card.featured { transform: none; }
   .shelf-label { width: 74px; }
+  .account-dl, .account-plans { grid-template-columns: 1fr; }
 }

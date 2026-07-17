@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { ProProvider } from './providers';
 import Header from './components/Header';
 
 export const metadata: Metadata = {
@@ -20,20 +19,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr">
       <body>
-        <ProProvider>
-          <Header />
-          <main>{children}</main>
-          <footer className="site-footer">
-            <div className="footer-inner">
-              <span>© {new Date().getFullYear()} CatPilot — Category management assisté.</span>
-              <span className="footer-links">
-                <a href="/#offres">Offres</a>
-                <a href="/app">Application</a>
-                <a href="mailto:contact@catpilot.app">Contact</a>
-              </span>
-            </div>
-          </footer>
-        </ProProvider>
+        <Header />
+        <main>{children}</main>
+        <footer className="site-footer">
+          <div className="footer-inner">
+            <span>© {new Date().getFullYear()} CatPilot — Category management assisté.</span>
+            <span className="footer-links">
+              <a href="/#offres">Offres</a>
+              <a href="/app">Application</a>
+              <a href="mailto:contact@catpilot.app">Contact</a>
+            </span>
+          </div>
+        </footer>
       </body>
     </html>
   );

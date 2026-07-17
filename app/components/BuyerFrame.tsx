@@ -51,7 +51,7 @@ export default function BuyerFrame({ plano, locked }: { plano: Planogram; locked
           <div className="overlay-card">
             <h4>Trame acheteur réservée au Pro</h4>
             <p>Débloquez la trame de présentation prête à défendre en rendez-vous enseigne, et les 4 variantes stratégiques.</p>
-            <Link href="/#offres" className="btn btn-primary">
+            <Link href="/compte" className="btn btn-primary">
               Passer en Pro
             </Link>
           </div>
