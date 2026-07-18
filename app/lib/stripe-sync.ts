@@ -15,13 +15,16 @@ export async function syncSubscriptionToProfile(
     typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
 
   const active = subscription.status === 'active' || subscription.status === 'trialing';
-  const periodEnd = subscription.items.data[0]?.current_period_end ?? (subscription as unknown as { current_period_end?: number }).current_period_end;
+  const item = subscription.items.data[0];
+  const periodEnd = item?.current_period_end ?? (subscription as unknown as { current_period_end?: number }).current_period_end;
 
   const update = {
     plan: active ? 'pro' : 'free',
     subscription_status: subscription.status,
     current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
     stripe_customer_id: customerId,
+    // Per-seat licensing: the Stripe quantity is the number of named seats.
+    seats: Math.max(1, item?.quantity ?? 1),
   };
 
   // Prefer matching by the user id stored in subscription metadata; otherwise

@@ -1,17 +1,22 @@
 import { redirect } from 'next/navigation';
 import CatPilotApp from '../components/CatPilotApp';
 import { createClient } from '../lib/supabase/server';
-import { getOrCreateProfile, isProActive } from '../lib/profile';
+import { getOrCreateProfile, isProEntitled } from '../lib/profile';
 
 export const metadata = {
   title: 'Application — CatPilot',
 };
 
-export default async function AppPage() {
+export default async function AppPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pres?: string }>;
+}) {
   const supabase = await createClient();
+  const { pres } = await searchParams;
 
-  // The Pro entitlement is the SERVER's source of truth (Supabase profile,
-  // mirrored from Stripe via webhook). No client-side simulation.
+  // The Pro entitlement is the SERVER's source of truth: own subscription or
+  // a named seat on a team subscription (mirrored from Stripe via webhook).
   let pro = false;
 
   if (supabase) {
@@ -24,7 +29,7 @@ export default async function AppPage() {
     }
 
     const profile = await getOrCreateProfile(supabase, user);
-    pro = isProActive(profile);
+    pro = await isProEntitled(supabase, profile);
   }
 
   // Local preview escape hatch (off by default). Lets you demo Pro features
@@ -33,5 +38,5 @@ export default async function AppPage() {
     pro = true;
   }
 
-  return <CatPilotApp pro={pro} />;
+  return <CatPilotApp pro={pro} presentationId={pres ?? null} />;
 }

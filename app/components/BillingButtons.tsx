@@ -14,10 +14,12 @@ async function post(url: string, body?: unknown): Promise<{ url?: string; error?
 /** Starts a Stripe Checkout session. Redirects to /login if not signed in. */
 export function CheckoutButton({
   plan,
+  seats = 1,
   className = 'btn btn-primary btn-block',
   children,
 }: {
   plan: 'monthly' | 'yearly';
+  seats?: number;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -30,7 +32,7 @@ export function CheckoutButton({
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify({ plan, seats }),
     });
     if (res.status === 401) {
       window.location.href = '/login';

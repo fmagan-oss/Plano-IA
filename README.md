@@ -31,6 +31,18 @@ Stack : **Next.js (App Router) + TypeScript**, **Supabase** (auth + Postgres),
   serveur, rate-limit par utilisateur. Free garde le copilote déterministe.
 - [x] **M6 — Déploiement** : `robots.txt` + `sitemap.xml`, variables d'env
   documentées, prêt pour Vercel + webhook Stripe prod.
+- [x] **M7 — Sièges nominatifs & espace de travail** :
+  - Tarification **par siège** (quantity Stripe) : Pro 149 € HT/siège/mois ou
+    1 490 € HT/siège/an ; pack Team = 10 sièges (1 200 € HT/mois) ; Enterprise
+    sur devis. Montants à valider avec des prospects avant publication.
+  - **Sièges nominatifs** anti-partage : 1 siège = 1 personne (e-mail
+    personnel, magic link). Le titulaire invite/retire les membres depuis
+    « Mon compte » ; quota appliqué côté serveur ; les membres héritent du Pro
+    (RPC `my_team_owner_pro`, security definer).
+  - **« Mes présentations »** : chaque analyse (données + réglages) peut être
+    enregistrée et rouverte à l'identique (`/presentations`, RLS par
+    utilisateur). L'export PPTX/PDF est un chantier séparé (à venir).
+  - Migration : `supabase/migrations/0003_seats_presentations.sql`.
 
 > **Sécurité (vérifié)** : `grep` du bundle client → aucun secret serveur
 > (Anthropic, Stripe, service_role, webhook). Seules les clés publiques
@@ -68,9 +80,10 @@ Pour prévisualiser les fonctionnalités Pro en local sans abonnement Stripe :
    `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
 
 ### 2. Stripe (M3)
-1. Mode **test**. Créez 2 produits/prix récurrents (HT) : Pro Mensuel
-   (1 200 €/mois) et Pro Annuel (12 000 €/an). Copiez les `price_...` dans
-   `STRIPE_PRICE_PRO_MONTHLY` / `STRIPE_PRICE_PRO_YEARLY`.
+1. Mode **test**. Créez 2 prix récurrents **par siège** (HT) : 149 €/mois et
+   1 490 €/an. Copiez les `price_...` dans `STRIPE_PRICE_PRO_MONTHLY` /
+   `STRIPE_PRICE_PRO_YEARLY`. Le nombre de sièges est la quantité Stripe
+   (modifiable via le Customer Portal — activez-y la modification de quantité).
 2. *Developers → API keys* → `STRIPE_SECRET_KEY` (`sk_test_...`).
 3. Activez **Stripe Tax** (*Settings → Tax*).
 4. Webhook (local) : `stripe listen --forward-to localhost:3000/api/stripe/webhook`

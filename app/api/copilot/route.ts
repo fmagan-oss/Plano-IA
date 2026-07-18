@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '../../lib/supabase/server';
-import { getOrCreateProfile, isProActive } from '../../lib/profile';
+import { getOrCreateProfile, isProEntitled } from '../../lib/profile';
 
 export const runtime = 'nodejs';
 
@@ -43,8 +43,9 @@ export async function POST(request: Request) {
   }
 
   // Re-verify the Pro status server-side — never trust the client.
+  // Covers both subscription owners and named team seats.
   const profile = await getOrCreateProfile(supabase, user);
-  if (!isProActive(profile)) {
+  if (!(await isProEntitled(supabase, profile))) {
     return NextResponse.json({ error: 'Copilote IA réservé au Pro.' }, { status: 403 });
   }
 

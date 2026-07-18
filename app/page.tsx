@@ -123,7 +123,7 @@ export default function LandingPage() {
             <ul>
               {t.yearPlan.features.map((f, i) => <li key={i}>{f}</li>)}
             </ul>
-            <CheckoutButton plan="yearly" className="btn btn-ghost btn-block">{t.yearPlan.cta}</CheckoutButton>
+            <CheckoutButton plan="monthly" seats={10} className="btn btn-ghost btn-block">{t.yearPlan.cta}</CheckoutButton>
           </article>
         </div>
 
