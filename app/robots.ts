@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: '*',
       allow: '/',
       // Keep the authenticated app and API out of the index.
-      disallow: ['/app', '/compte', '/login', '/api/', '/auth/'],
+      disallow: ['/app', '/compte', '/login', '/presentations', '/api/', '/auth/'],
     },
     sitemap: `${BASE}/sitemap.xml`,
   };

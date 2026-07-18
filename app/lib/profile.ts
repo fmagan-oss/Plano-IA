@@ -8,6 +8,8 @@ export interface Profile {
   plan: 'free' | 'pro';
   subscription_status: string | null;
   current_period_end: string | null;
+  /** Nombre de sièges nominatifs de l'abonnement (quantity Stripe). */
+  seats: number;
 }
 
 /**
@@ -27,12 +29,23 @@ export async function getOrCreateProfile(
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, email, stripe_customer_id, plan, subscription_status, current_period_end')
+    .select('id, email, stripe_customer_id, plan, subscription_status, current_period_end, seats')
     .eq('id', user.id)
     .single();
 
   if (error) return null;
   return data as Profile;
+}
+
+/**
+ * Full entitlement: the user is Pro if they own an active subscription, OR if
+ * they occupy a named seat on someone else's active subscription
+ * (team_members + security-definer RPC, see migration 0003).
+ */
+export async function isProEntitled(supabase: SupabaseClient, profile: Profile | null): Promise<boolean> {
+  if (isProActive(profile)) return true;
+  const { data } = await supabase.rpc('my_team_owner_pro');
+  return data === true;
 }
 
 /** Whether a profile currently entitles the user to Pro features. */

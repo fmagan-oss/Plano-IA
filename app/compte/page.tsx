@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '../lib/supabase/server';
-import { getOrCreateProfile, isProActive } from '../lib/profile';
-import { CheckoutButton, ManageBillingButton } from '../components/BillingButtons';
+import { getOrCreateProfile, isProActive, isProEntitled } from '../lib/profile';
+import { ManageBillingButton } from '../components/BillingButtons';
+import AccountPlans from '../components/AccountPlans';
+import TeamManager from '../components/TeamManager';
 
 export const metadata = { title: 'Mon compte — CatPilot' };
 
@@ -25,7 +27,8 @@ export default async function AccountPage() {
   if (!user) redirect('/login');
 
   const profile = await getOrCreateProfile(supabase, user);
-  const pro = isProActive(profile);
+  const owner = isProActive(profile);
+  const pro = owner || (await isProEntitled(supabase, profile));
   const periodEnd = profile?.current_period_end
     ? new Date(profile.current_period_end).toLocaleDateString('fr-FR')
     : null;
@@ -45,13 +48,13 @@ export default async function AccountPage() {
           </div>
           <div>
             <dt>Formule</dt>
-            <dd>{pro ? 'Pro' : 'Gratuit (démo)'}</dd>
+            <dd>{owner ? `Pro — ${profile?.seats ?? 1} siège(s)` : pro ? 'Pro (siège d’équipe)' : 'Gratuit (démo)'}</dd>
           </div>
           <div>
             <dt>Statut abonnement</dt>
-            <dd>{profile?.subscription_status ?? '—'}</dd>
+            <dd>{owner ? profile?.subscription_status ?? '—' : pro ? 'couvert par le titulaire' : '—'}</dd>
           </div>
-          {periodEnd && (
+          {periodEnd && owner && (
             <div>
               <dt>Période en cours jusqu’au</dt>
               <dd>{periodEnd}</dd>
@@ -60,14 +63,29 @@ export default async function AccountPage() {
         </dl>
       </div>
 
-      {pro ? (
+      {owner ? (
+        <>
+          <div className="account-card">
+            <h2>Gérer mon abonnement</h2>
+            <p className="muted">
+              Modifiez le nombre de sièges, votre moyen de paiement, téléchargez vos factures ou résiliez depuis le
+              portail sécurisé Stripe.
+            </p>
+            <div className="account-actions">
+              <ManageBillingButton>Gérer mon abonnement</ManageBillingButton>
+              <Link href="/app" className="btn btn-primary">Ouvrir l’application</Link>
+            </div>
+          </div>
+          <TeamManager />
+        </>
+      ) : pro ? (
         <div className="account-card">
-          <h2>Gérer mon abonnement</h2>
+          <h2>Votre accès Pro</h2>
           <p className="muted">
-            Modifiez votre moyen de paiement, téléchargez vos factures ou résiliez depuis le portail sécurisé Stripe.
+            Vous occupez un siège nominatif sur l’abonnement de votre équipe. Toutes les fonctionnalités Pro sont
+            débloquées.
           </p>
           <div className="account-actions">
-            <ManageBillingButton>Gérer mon abonnement</ManageBillingButton>
             <Link href="/app" className="btn btn-primary">Ouvrir l’application</Link>
           </div>
         </div>
@@ -75,21 +93,11 @@ export default async function AccountPage() {
         <div className="account-card">
           <h2>Passer en Pro</h2>
           <p className="muted">
-            Débloquez les 4 variantes stratégiques, la trame de présentation acheteur et le copilote IA connecté.
-            Tarifs HT — facturation B2B conforme (TVA intracommunautaire).
+            Débloquez les 4 variantes stratégiques, la trame de présentation acheteur, le copilote IA connecté et
+            l’espace « Mes présentations ». Tarification par siège nominatif — chaque membre se connecte avec sa
+            propre adresse. Tarifs HT, facturation B2B conforme.
           </p>
-          <div className="account-plans">
-            <div className="account-plan">
-              <h3>Pro Mensuel</h3>
-              <p className="price">1 200 € <span>HT / mois</span></p>
-              <CheckoutButton plan="monthly">Choisir le mensuel</CheckoutButton>
-            </div>
-            <div className="account-plan">
-              <h3>Pro Annuel</h3>
-              <p className="price">12 000 € <span>HT / an</span></p>
-              <CheckoutButton plan="yearly" className="btn btn-ghost btn-block">Choisir l’annuel</CheckoutButton>
-            </div>
-          </div>
+          <AccountPlans />
           <p className="account-quote">
             Gros compte / paiement par virement ?{' '}
             <a href="mailto:contact@catpilot.app?subject=Devis%20CatPilot">Demander un devis</a>.

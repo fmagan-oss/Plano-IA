@@ -56,6 +56,7 @@ export default function Header() {
           <Link href="/">{t.nav.home}</Link>
           <Link href="/#offres">{t.nav.offers}</Link>
           <Link href="/app">{t.nav.app}</Link>
+          {email && <Link href="/presentations">{t.nav.pres}</Link>}
         </nav>
 
         <div className="header-session">

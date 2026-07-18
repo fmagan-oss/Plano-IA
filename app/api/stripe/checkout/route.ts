@@ -28,8 +28,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { plan?: 'monthly' | 'yearly' };
+  const body = (await request.json().catch(() => ({}))) as { plan?: 'monthly' | 'yearly'; seats?: number };
   const plan = body.plan === 'yearly' ? 'yearly' : 'monthly';
+  // Per-seat licensing: quantity = named seats (1..100).
+  const seats = Math.min(100, Math.max(1, Math.floor(Number(body.seats) || 1)));
   const price = priceIdForPlan(plan);
   if (!price) {
     return NextResponse.json({ error: `Prix Stripe « ${plan} » non configuré.` }, { status: 503 });
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
     mode: 'subscription',
     customer: customerId,
     client_reference_id: user.id,
-    line_items: [{ price, quantity: 1 }],
+    line_items: [{ price, quantity: seats }],
     subscription_data: { metadata: { supabase_user_id: user.id } },
     automatic_tax: { enabled: true },
     tax_id_collection: { enabled: true },

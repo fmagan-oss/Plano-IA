@@ -7,6 +7,7 @@ import { generatePlanogram, STRATEGY_TEXT, DEFAULT_FIXTURE } from '../lib/planog
 import { SAMPLE_PRODUCTS, SAMPLE_FILENAME } from '../lib/sample';
 import type { Fixture, ParsedDataset, StrategyKey } from '../lib/types';
 import { T, useLocale } from '../lib/i18n';
+import { createClient } from '../lib/supabase/client';
 import PlanogramView from './PlanogramView';
 import PlanDeMasse from './PlanDeMasse';
 import BuyerFrame from './BuyerFrame';
@@ -14,7 +15,7 @@ import Copilot from './Copilot';
 
 const STRATEGY_ORDER: StrategyKey[] = ['balanced', 'rotation', 'margin', 'revenue'];
 
-export default function CatPilotApp({ pro }: { pro: boolean }) {
+export default function CatPilotApp({ pro, presentationId = null }: { pro: boolean; presentationId?: string | null }) {
   const { locale } = useLocale();
   const t = T[locale].app;
   const [dataset, setDataset] = useState<ParsedDataset | null>(null);
@@ -24,8 +25,60 @@ export default function CatPilotApp({ pro }: { pro: boolean }) {
   const [active, setActive] = useState<StrategyKey>('balanced');
   const [fixture, setFixture] = useState<Fixture>(DEFAULT_FIXTURE);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [canSave, setCanSave] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const maxVariants = pro ? 4 : 1;
+
+  // "Mes présentations": saving requires a signed-in Supabase user.
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+    supabase.auth.getUser().then(({ data }) => setCanSave(!!data.user));
+  }, []);
+
+  // Reopen a saved presentation (?pres=<id>) — RLS restricts to the owner.
+  useEffect(() => {
+    if (!presentationId) return;
+    const supabase = createClient();
+    if (!supabase) return;
+    supabase
+      .from('presentations')
+      .select('name, payload')
+      .eq('id', presentationId)
+      .single()
+      .then(({ data }) => {
+        const pl = data?.payload as { dataset?: ParsedDataset; fileName?: string; fixture?: Fixture; active?: StrategyKey } | undefined;
+        if (pl?.dataset?.products?.length) {
+          setDataset(pl.dataset);
+          setFileName(pl.fileName || data?.name || '');
+          if (pl.fixture) setFixture(pl.fixture);
+          if (pl.active) setActive(pl.active);
+        }
+      });
+  }, [presentationId]);
+
+  async function savePresentation() {
+    const supabase = createClient();
+    if (!supabase || !dataset) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      window.location.href = '/login';
+      return;
+    }
+    const name = window.prompt(t.savePrompt, fileName || 'CatPilot');
+    if (!name) return;
+    setSaveState('saving');
+    const { error: err } = await supabase.from('presentations').insert({
+      user_id: user.id,
+      name,
+      payload: { fileName, dataset, fixture, active },
+    });
+    setSaveState(err ? 'error' : 'saved');
+    setTimeout(() => setSaveState('idle'), 2500);
+  }
 
   // Expose the server-derived entitlement for debugging (read-only mirror).
   useEffect(() => {
@@ -155,6 +208,11 @@ export default function CatPilotApp({ pro }: { pro: boolean }) {
                   </select>
                 </label>
               </div>
+              {canSave && (
+                <button className="btn btn-primary" onClick={savePresentation} disabled={saveState === 'saving'}>
+                  {saveState === 'saving' ? t.saving : saveState === 'saved' ? t.savedOk : saveState === 'error' ? t.saveError : t.save}
+                </button>
+              )}
               <button className="btn btn-ghost" onClick={() => inputRef.current?.click()}>
                 {t.changeFile}
               </button>
