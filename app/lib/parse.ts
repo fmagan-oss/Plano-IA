@@ -1,23 +1,18 @@
 import * as XLSX from 'xlsx';
 import type { ParsedDataset, Product } from './types';
 import type { Locale } from './i18n';
+import ALIASES_JSON from './column-aliases.json';
 
 /**
  * Fuzzy column detection for Nielsen / Circana style exports.
- * Each logical field maps to a list of header candidates (accent-insensitive,
- * case-insensitive, substring match).
+ * The alias dictionary lives in column-aliases.json — it is the file enriched
+ * by the nightly training routine (scripts/train-parser.mjs) and by
+ * user "bad read" reports. Matching is accent/case-insensitive, substring.
  */
-const COLUMN_ALIASES: Record<string, string[]> = {
-  brand: ['marque', 'brand', 'fabricant', 'fournisseur', 'manufacturer', 'enseigne marque'],
-  ean: ['ean', 'ean13', 'gencod', 'gencode', 'code barre', 'code-barre', 'barcode', 'upc'],
-  name: ['produit', 'reference', 'référence', 'libelle', 'libellé', 'product', 'sku', 'article', 'designation', 'désignation'],
-  segment: ['segment', 'sous-segment', 'categorie', 'catégorie', 'category', 'famille', 'rayon', 'univers'],
-  revenue: ['ca', "chiffre d'affaires", 'chiffre d affaires', 'ventes valeur', 'sales value', 'value', 'valeur', 'ca ttc', 'ca ht', 'revenue', 'turnover'],
-  volume: ['volume', 'unites', 'unités', 'units', 'quantite', 'quantité', 'qty', 'ventes volume', 'ventes unites', 'pieces'],
-  margin: ['marge', 'margin', 'profit', 'marge brute', 'marge %', 'taux de marge'],
-  price: ['prix', 'price', 'pvc', 'prix de vente', 'tarif', 'prix unitaire'],
-  isNew: ['nouveaute', 'nouveauté', 'nouveau', 'new', 'innovation', 'lancement'],
-};
+const COLUMN_ALIASES: Record<string, string[]> = ALIASES_JSON as Record<string, string[]>;
+
+/** Fields the AI mapping fallback and reports operate on. */
+export const MAPPABLE_FIELDS = Object.keys(COLUMN_ALIASES);
 
 /** Libellés métier utilisés dans les diagnostics et l'affichage du mapping. */
 export const FIELD_LABELS: Record<Locale, Record<string, string>> = {
@@ -107,7 +102,28 @@ function toBool(v: unknown): boolean {
  * Throws an Error with a precise, user-facing French message when the file is
  * structurally unusable; recoverable issues land in `warnings`.
  */
-export function parseWorkbook(buffer: ArrayBuffer, fileName = 'fichier', locale: Locale = 'fr'): ParsedDataset {
+/** Reads headers + a few sample rows (for reports and the AI mapping net). */
+export function readRawRows(buffer: ArrayBuffer): { headers: string[]; sample: unknown[][] } {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { header: 1, blankrows: false }) as unknown as unknown[][];
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const textCells = (rows[i] || []).filter((c) => typeof c === 'string' && c.trim().length > 0).length;
+    if (textCells >= 2) { headerIdx = i; break; }
+  }
+  return {
+    headers: (rows[headerIdx] || []).map((c) => (c == null ? '' : String(c))),
+    sample: rows.slice(headerIdx + 1, headerIdx + 4),
+  };
+}
+
+export function parseWorkbook(
+  buffer: ArrayBuffer,
+  fileName = 'fichier',
+  locale: Locale = 'fr',
+  overrides?: Record<string, number | null>
+): ParsedDataset {
   const D = DIAG[locale];
   let wb: XLSX.WorkBook;
   try {
@@ -144,6 +160,17 @@ export function parseWorkbook(buffer: ArrayBuffer, fileName = 'fichier', locale:
     const i = detectColumn(headers, COLUMN_ALIASES[field]);
     idx[field] = i;
     detectedColumns[field] = i >= 0 ? headers[i] : null;
+  }
+
+  // AI / manual mapping overrides win over heuristic detection.
+  if (overrides) {
+    for (const field of Object.keys(COLUMN_ALIASES)) {
+      const o = overrides[field];
+      if (typeof o === 'number' && o >= 0 && o < headers.length) {
+        idx[field] = o;
+        detectedColumns[field] = headers[o];
+      }
+    }
   }
 
   // --- Diagnostics métier précis ---

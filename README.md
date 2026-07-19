@@ -158,6 +158,21 @@ Chaque variante pondère les références (Équilibré = 45 % CA + 35 % volume +
 répartit les facings par plus fort reste, garde les blocs marques contigus et
 remonte les nouveautés au niveau des yeux.
 
+## Entraînement du robot de lecture
+
+Le dictionnaire de colonnes vit dans `app/lib/column-aliases.json`. Trois
+circuits l'améliorent :
+
+1. **Bouton « Signaler une mauvaise lecture »** (app) → table `parse_reports`
+   (en-têtes + 3 lignes d'exemple + mapping détecté + commentaire).
+2. **Filet IA** : quand le dictionnaire échoue, `/api/map-columns` envoie les
+   en-têtes + 3 lignes à Claude qui propose un mapping, appliqué après
+   confirmation visuelle (jamais le fichier complet).
+3. **Routine nocturne** : dépose de fichiers dans `training-inbox/`
+   (.xlsx/.csv) → `node scripts/train-parser.mjs` liste les en-têtes non
+   reconnus → enrichissement du dictionnaire → signatures archivées dans
+   `training-data/` (sans données produits).
+
 > ⚠️ Avant la prod : la dépendance `xlsx` (SheetJS) npm a des avis de sécurité
 > connus — basculer vers la distribution officielle SheetJS. Le rate-limit du
 > proxy IA est en mémoire (par instance) — à remplacer par un store partagé
