@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { parseWorkbook, FIELD_LABELS } from '../lib/parse';
+import { parseWorkbook, readRawRows, FIELD_LABELS } from '../lib/parse';
 import { generatePlanogram, STRATEGY_TEXT, DEFAULT_FIXTURE } from '../lib/planogram';
 import { SAMPLE_PRODUCTS, SAMPLE_FILENAME } from '../lib/sample';
 import type { Fixture, ParsedDataset, StrategyKey } from '../lib/types';
@@ -29,6 +29,10 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
   const [canSave, setCanSave] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [exporting, setExporting] = useState(false);
+  const bufRef = useRef<ArrayBuffer | null>(null);
+  const [aiMapping, setAiMapping] = useState(false);
+  const [aiNote, setAiNote] = useState<string | null>(null);
+  const [reportNote, setReportNote] = useState<string | null>(null);
 
   const maxVariants = pro ? 4 : 1;
 
@@ -100,6 +104,9 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
         );
       }
       const buf = await file.arrayBuffer();
+      bufRef.current = buf;
+      setAiNote(null);
+      setReportNote(null);
       // parseWorkbook lève des erreurs précises (fichier illisible, feuille
       // vide, colonnes d'identification absentes…) affichées telles quelles.
       const parsed = parseWorkbook(buf, file.name, locale);
@@ -115,6 +122,9 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
 
   function loadSample() {
     setError(null);
+    bufRef.current = null;
+    setAiNote(null);
+    setReportNote(null);
     setDataset({
       products: SAMPLE_PRODUCTS,
       detectedColumns: {
@@ -142,6 +152,65 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
     if (!products.length) return null;
     return generatePlanogram(products, active, fixture, locale);
   }, [products, active, fixture, locale]);
+
+  // Key fields still missing after heuristic detection → offer the AI net.
+  const hasGaps = !!dataset && (
+    (!dataset.detectedColumns.ean && !dataset.detectedColumns.name) ||
+    !dataset.detectedColumns.brand ||
+    (!dataset.detectedColumns.revenue && !dataset.detectedColumns.volume)
+  );
+  const showAiNet = !!bufRef.current && (!!error || hasGaps);
+  const showReport = !!bufRef.current && canSave && (!!error || !!dataset);
+
+  async function aiMapColumns() {
+    if (!bufRef.current) return;
+    setAiMapping(true);
+    setAiNote(null);
+    try {
+      const raw = readRawRows(bufRef.current);
+      const res = await fetch('/api/map-columns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(raw),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAiNote(data.error || 'Erreur.');
+        return;
+      }
+      const parsed = parseWorkbook(bufRef.current, fileName, locale, data.mapping);
+      setDataset(parsed);
+      setError(null);
+      setActive('balanced');
+      setAiNote(t.aiApplied);
+    } catch (e) {
+      setAiNote(e instanceof Error && e.message ? e.message : 'Erreur.');
+    } finally {
+      setAiMapping(false);
+    }
+  }
+
+  async function reportBadRead() {
+    const supabase = createClient();
+    if (!supabase || !bufRef.current) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) { window.location.href = '/login'; return; }
+    const comment = window.prompt(t.reportPrompt, '');
+    if (comment === null) return;
+    const raw = readRawRows(bufRef.current);
+    const { error: err } = await supabase.from('parse_reports').insert({
+      user_id: user.id,
+      file_name: fileName || null,
+      headers: raw.headers,
+      sample: raw.sample,
+      detected: dataset?.detectedColumns ?? null,
+      comment: comment || null,
+    });
+    setReportNote(err ? t.reportFail : t.reportThanks);
+    setTimeout(() => setReportNote(null), 4000);
+  }
 
   async function doExportPptx() {
     if (!plano) return;
@@ -192,6 +261,23 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
       />
 
       {error && <div className="alert alert-error">{error}</div>}
+
+      {(showAiNet || showReport || aiNote || reportNote) && (
+        <div className="fixnet">
+          {showAiNet && (
+            <button className="btn btn-primary" onClick={aiMapColumns} disabled={aiMapping}>
+              {aiMapping ? t.aiMapping : t.aiMapBtn}
+            </button>
+          )}
+          {showReport && (
+            <button className="btn btn-ghost" onClick={reportBadRead}>
+              {t.reportBtn}
+            </button>
+          )}
+          {aiNote && <span className="fixnet-note">{aiNote}</span>}
+          {reportNote && <span className="fixnet-note">{reportNote}</span>}
+        </div>
+      )}
 
       {dataset && (
         <>

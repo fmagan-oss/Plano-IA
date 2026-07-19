@@ -1,0 +1,97 @@
+{
+  "brand": [
+    "marque",
+    "brand",
+    "fabricant",
+    "fournisseur",
+    "manufacturer",
+    "enseigne marque",
+    "fab",
+    "fab."
+  ],
+  "ean": [
+    "ean",
+    "ean13",
+    "gencod",
+    "gencode",
+    "code barre",
+    "code-barre",
+    "barcode",
+    "upc"
+  ],
+  "name": [
+    "produit",
+    "reference",
+    "référence",
+    "libelle",
+    "libellé",
+    "product",
+    "sku",
+    "article",
+    "designation",
+    "désignation",
+    "desig",
+    "désig"
+  ],
+  "segment": [
+    "segment",
+    "sous-segment",
+    "categorie",
+    "catégorie",
+    "category",
+    "famille",
+    "rayon",
+    "univers"
+  ],
+  "revenue": [
+    "ca",
+    "chiffre d'affaires",
+    "chiffre d affaires",
+    "ventes valeur",
+    "sales value",
+    "value",
+    "valeur",
+    "ca ttc",
+    "ca ht",
+    "revenue",
+    "turnover"
+  ],
+  "volume": [
+    "volume",
+    "unites",
+    "unités",
+    "units",
+    "quantite",
+    "quantité",
+    "qty",
+    "ventes volume",
+    "ventes unites",
+    "pieces",
+    "qte",
+    "qté"
+  ],
+  "margin": [
+    "marge",
+    "margin",
+    "profit",
+    "marge brute",
+    "marge %",
+    "taux de marge"
+  ],
+  "price": [
+    "prix",
+    "price",
+    "pvc",
+    "prix de vente",
+    "tarif",
+    "prix unitaire"
+  ],
+  "isNew": [
+    "nouveaute",
+    "nouveauté",
+    "nouveau",
+    "new",
+    "innovation",
+    "lancement"
+  ]
+}

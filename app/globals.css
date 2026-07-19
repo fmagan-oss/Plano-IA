@@ -379,6 +379,10 @@ main { min-height: 60vh; }
 .fixture-controls label { display: flex; flex-direction: column; font-size: 0.72rem; color: var(--muted); gap: 0.2rem; }
 .fixture-controls select { border: 1px solid var(--border); border-radius: 7px; padding: 0.3rem 0.4rem; background: var(--surface); font-size: 0.9rem; }
 
+/* AI mapping net + bad-read report */
+.fixnet { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; margin: 0.8rem 0; }
+.fixnet-note { font-size: 0.86rem; color: var(--ok); font-weight: 600; }
+
 /* Detected columns mapping */
 .mapping {
   background: var(--surface);
