@@ -125,6 +125,7 @@ export const T = {
       trameMoves: 'Moves clés', trameNov: 'Nouveautés', trameImpact: 'Impact attendu',
       save: 'Enregistrer', saving: 'Enregistrement…', savedOk: 'Enregistré ✓', saveError: 'Échec de l’enregistrement.',
       savePrompt: 'Nom de la présentation :',
+      exportPptx: 'Exporter en PowerPoint', exportPdf: 'Exporter en PDF', exporting: 'Export…',
     },
     pres: {
       title: 'Mes présentations',
@@ -225,6 +226,7 @@ export const T = {
       trameMoves: 'Key moves', trameNov: 'New products', trameImpact: 'Expected impact',
       save: 'Save', saving: 'Saving…', savedOk: 'Saved ✓', saveError: 'Save failed.',
       savePrompt: 'Presentation name:',
+      exportPptx: 'Export to PowerPoint', exportPdf: 'Export to PDF', exporting: 'Exporting…',
     },
     pres: {
       title: 'My presentations',

@@ -8,6 +8,7 @@ import { SAMPLE_PRODUCTS, SAMPLE_FILENAME } from '../lib/sample';
 import type { Fixture, ParsedDataset, StrategyKey } from '../lib/types';
 import { T, useLocale } from '../lib/i18n';
 import { createClient } from '../lib/supabase/client';
+import { exportPptx } from '../lib/pptx-export';
 import PlanogramView from './PlanogramView';
 import PlanDeMasse from './PlanDeMasse';
 import BuyerFrame from './BuyerFrame';
@@ -27,6 +28,7 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
   const inputRef = useRef<HTMLInputElement>(null);
   const [canSave, setCanSave] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [exporting, setExporting] = useState(false);
 
   const maxVariants = pro ? 4 : 1;
 
@@ -141,6 +143,23 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
     return generatePlanogram(products, active, fixture, locale);
   }, [products, active, fixture, locale]);
 
+  async function doExportPptx() {
+    if (!plano) return;
+    setExporting(true);
+    try {
+      await exportPptx({
+        plano,
+        products,
+        fileName,
+        strategyLabel: STRATEGY_TEXT[locale][active].label,
+        fixture,
+        locale,
+      });
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="app">
       <div className="app-head">
@@ -208,6 +227,16 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
                   </select>
                 </label>
               </div>
+              {pro && plano && !activeLocked && (
+                <>
+                  <button className="btn btn-ghost" onClick={doExportPptx} disabled={exporting}>
+                    {exporting ? t.exporting : t.exportPptx}
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => window.print()}>
+                    {t.exportPdf}
+                  </button>
+                </>
+              )}
               {canSave && (
                 <button className="btn btn-primary" onClick={savePresentation} disabled={saveState === 'saving'}>
                   {saveState === 'saving' ? t.saving : saveState === 'saved' ? t.savedOk : saveState === 'error' ? t.saveError : t.save}
