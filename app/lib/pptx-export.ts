@@ -1,5 +1,6 @@
-import type { Fixture, Planogram, Product } from './types';
+import type { BuyerFrame, Fixture, Planogram, Product } from './types';
 import type { Locale } from './i18n';
+import type { BrandKit } from './brand-kit';
 
 /**
  * Builds a native .pptx (4 slides: title, space plan, planogram, buyer deck)
@@ -55,9 +56,17 @@ export async function exportPptx(opts: {
   strategyLabel: string;
   fixture: Fixture;
   locale: Locale;
+  /** Trame éditée par l'utilisateur (sinon la trame générée). */
+  frame?: BuyerFrame;
+  /** Charte de marque (couleurs + logo + nom) appliquée au deck. */
+  kit?: BrandKit | null;
 }): Promise<void> {
-  const { plano, fileName, strategyLabel, fixture, locale } = opts;
+  const { plano, fileName, strategyLabel, fixture, locale, kit } = opts;
   const t = L[locale];
+  const accent = kit?.colors?.primary ? hex(kit.colors.primary) : NAVY;
+  const darkBg = kit?.colors?.dark ? hex(kit.colors.dark) : NAVY;
+  const company = kit?.company?.trim() || '';
+  const logo = kit?.logoData || null;
   const PptxGenJS = (await import('pptxgenjs')).default;
   const pptx = new PptxGenJS();
   pptx.defineLayout({ name: 'WIDE', width: 10, height: 5.625 });
@@ -67,8 +76,11 @@ export async function exportPptx(opts: {
 
   /* ---- Slide 1 : titre ---- */
   const s1 = pptx.addSlide();
-  s1.background = { color: NAVY };
-  s1.addText('CatPilot', { x: 0.6, y: 0.55, w: 8.8, h: 0.5, fontSize: 20, bold: true, color: 'FFFFFF' });
+  s1.background = { color: darkBg };
+  s1.addText(company || 'CatPilot', { x: 0.6, y: 0.55, w: 7.0, h: 0.5, fontSize: 20, bold: true, color: 'FFFFFF' });
+  if (logo) {
+    s1.addImage({ data: logo, x: 8.0, y: 0.4, w: 1.4, h: 0.8, sizing: { type: 'contain', w: 1.4, h: 0.8 } });
+  }
   s1.addText(fileName || 'Category review', {
     x: 0.6, y: 1.9, w: 8.8, h: 1.1, fontSize: 34, bold: true, color: 'FFFFFF',
   });
@@ -80,7 +92,8 @@ export async function exportPptx(opts: {
 
   /* ---- Slide 2 : plan de masse ---- */
   const s2 = pptx.addSlide();
-  s2.addText(t.masse, { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 20, bold: true, color: NAVY });
+  s2.addText(t.masse, { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 20, bold: true, color: accent });
+  if (logo) s2.addImage({ data: logo, x: 8.9, y: 0.25, w: 0.6, h: 0.35, sizing: { type: 'contain', w: 0.6, h: 0.35 } });
 
   // Stacked shelf-share bar
   let bx = 0.5;
@@ -117,7 +130,8 @@ export async function exportPptx(opts: {
 
   /* ---- Slide 3 : planogramme ---- */
   const s3 = pptx.addSlide();
-  s3.addText(t.plano, { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 20, bold: true, color: NAVY });
+  s3.addText(t.plano, { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 20, bold: true, color: accent });
+  if (logo) s3.addImage({ data: logo, x: 8.9, y: 0.25, w: 0.6, h: 0.35, sizing: { type: 'contain', w: 0.6, h: 0.35 } });
 
   const areaY = 1.0;
   const areaH = 3.7;
@@ -163,8 +177,9 @@ export async function exportPptx(opts: {
 
   /* ---- Slide 4 : trame acheteur ---- */
   const s4 = pptx.addSlide();
-  const f = plano.buyerFrame;
-  s4.addText(t.trame, { x: 0.5, y: 0.3, w: 9, h: 0.4, fontSize: 20, bold: true, color: NAVY });
+  const f = opts.frame ?? plano.buyerFrame;
+  s4.addText(t.trame, { x: 0.5, y: 0.3, w: 9, h: 0.4, fontSize: 20, bold: true, color: accent });
+  if (logo) s4.addImage({ data: logo, x: 8.9, y: 0.25, w: 0.6, h: 0.35, sizing: { type: 'contain', w: 0.6, h: 0.35 } });
   s4.addText(f.headline, { x: 0.5, y: 0.85, w: 9, h: 0.4, fontSize: 14, bold: true, color: '0F172A' });
   s4.addText(f.categorySummary, { x: 0.5, y: 1.3, w: 9, h: 0.6, fontSize: 10, color: '475569' });
 
@@ -181,7 +196,7 @@ export async function exportPptx(opts: {
       { x, y: 2.4, w: 2.9, h: 2.9, valign: 'top' }
     );
   });
-  s4.addText(`${t.footer} · ${dateStr}`, { x: 0.5, y: 5.25, w: 9, h: 0.3, fontSize: 8, color: MUTED });
+  s4.addText(`${company ? company + ' · ' : ''}${t.footer} · ${dateStr}`, { x: 0.5, y: 5.25, w: 9, h: 0.3, fontSize: 8, color: MUTED });
 
   const safe = (fileName || 'catpilot').replace(/\.[^.]+$/, '').replace(/[^\w\dÀ-ÿ -]+/g, '_').slice(0, 60);
   await pptx.writeFile({ fileName: `CatPilot — ${safe}.pptx` });
