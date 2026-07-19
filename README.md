@@ -41,7 +41,12 @@ Stack : **Next.js (App Router) + TypeScript**, **Supabase** (auth + Postgres),
     (RPC `my_team_owner_pro`, security definer).
   - **« Mes présentations »** : chaque analyse (données + réglages) peut être
     enregistrée et rouverte à l'identique (`/presentations`, RLS par
-    utilisateur). L'export PPTX/PDF est un chantier séparé (à venir).
+    utilisateur).
+  - **Export PowerPoint & PDF (Pro)** : génération d'un vrai `.pptx` 4 diapos
+    (titre, plan de masse, planogramme dessiné, trame acheteur) côté
+    navigateur via pptxgenjs — aucune donnée ne quitte le poste ; export PDF
+    via mise en page d'impression dédiée. La trame verrouillée (démo) est
+    exclue de l'impression.
   - Migration : `supabase/migrations/0003_seats_presentations.sql`.
 
 > **Sécurité (vérifié)** : `grep` du bundle client → aucun secret serveur
