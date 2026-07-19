@@ -61,6 +61,7 @@ function normalize(s: string): string {
     .toString()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
+    .replace(/[’‘]/g, "'")
     .toLowerCase()
     .trim();
 }
