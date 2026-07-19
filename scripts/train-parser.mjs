@@ -26,6 +26,7 @@ const XLSX = require('xlsx');
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const INBOX = join(root, 'training-inbox');
 const DATA_DIR = join(root, 'training-data');
+const CORPUS = join(DATA_DIR, 'corpus');
 const PROCESSED = join(DATA_DIR, 'processed.json');
 const ALIASES = JSON.parse(readFileSync(join(root, 'app/lib/column-aliases.json'), 'utf8'));
 
@@ -51,17 +52,22 @@ function headersOf(path) {
 
 if (!existsSync(INBOX)) mkdirSync(INBOX, { recursive: true });
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+if (!existsSync(CORPUS)) mkdirSync(CORPUS, { recursive: true });
 const processed = existsSync(PROCESSED) ? JSON.parse(readFileSync(PROCESSED, 'utf8')) : {};
 
-const files = readdirSync(INBOX).filter((f) => /\.(xlsx|csv)$/i.test(f));
+// Boîte de dépôt (fichiers réels) + corpus synthétique (salle d'entraînement)
+const files = [
+  ...readdirSync(INBOX).filter((f) => /\.(xlsx|csv)$/i.test(f)).map((f) => ({ dir: INBOX, f, tag: 'inbox' })),
+  ...readdirSync(CORPUS).filter((f) => /\.(xlsx|csv)$/i.test(f)).map((f) => ({ dir: CORPUS, f, tag: 'corpus' })),
+];
 const report = { files: [], gaps: 0 };
 
-for (const f of files) {
+for (const { dir, f, tag } of files) {
   let headers;
   try {
-    headers = headersOf(join(INBOX, f));
+    headers = headersOf(join(dir, f));
   } catch (e) {
-    report.files.push({ file: f, error: String(e.message || e) });
+    report.files.push({ file: `${tag}/${f}`, error: String(e.message || e) });
     report.gaps++;
     continue;
   }
@@ -81,8 +87,8 @@ for (const f of files) {
     (missing.includes('ean') && missing.includes('name')) ||
     (missing.includes('revenue') && missing.includes('volume'));
   if (critical) report.gaps++;
-  report.files.push({ file: f, mapping, missing, orphans });
-  processed[f] = { headers, at: new Date().toISOString().slice(0, 10) };
+  report.files.push({ file: `${tag}/${f}`, mapping, missing, orphans });
+  processed[`${tag}/${f}`] = { headers, at: new Date().toISOString().slice(0, 10) };
 }
 
 writeFileSync(PROCESSED, JSON.stringify(processed, null, 2) + '\n');
@@ -90,7 +96,7 @@ writeFileSync(PROCESSED, JSON.stringify(processed, null, 2) + '\n');
 if (process.argv.includes('--json')) {
   console.log(JSON.stringify(report, null, 2));
 } else {
-  if (!files.length) console.log('training-inbox/ vide — rien à traiter.');
+  if (!files.length) console.log('training-inbox/ et training-data/corpus/ vides — rien à traiter.');
   for (const r of report.files) {
     console.log(`\n▸ ${r.file}`);
     if (r.error) { console.log(`  ERREUR : ${r.error}`); continue; }
