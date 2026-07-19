@@ -559,6 +559,49 @@ main { min-height: 60vh; }
 .pres-empty { background: var(--surface); border: 1px dashed var(--border); border-radius: var(--radius); padding: 2.5rem 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
 .copilot-error { background: var(--err-bg); color: var(--err); }
 
+/* ---------- Trame editor (Pro) ---------- */
+.trame-head-actions { display: flex; align-items: center; gap: 0.7rem; }
+.trame-editor { display: flex; flex-direction: column; gap: 0.55rem; }
+.trame-editor label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.trame-editor input,
+.trame-editor textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.92rem;
+  font-family: inherit;
+  resize: vertical;
+  background: var(--bg);
+  color: var(--text);
+}
+.trame-editor input { font-weight: 700; font-size: 1.02rem; }
+.trame-editor-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.9rem; margin-top: 0.3rem; }
+.trame-editor-cols label { display: block; margin-bottom: 0.3rem; }
+.trame-editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; margin-top: 0.4rem; flex-wrap: wrap; }
+.trame-editor-actions .muted { font-size: 0.82rem; }
+
+/* ---------- Charte de marque (brand kit) ---------- */
+.brandkit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem 1.3rem; margin-top: 1.1rem; }
+.brandkit-field { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.82rem; font-weight: 600; color: var(--text-2); }
+.brandkit-field input[type='text'],
+.brandkit-field input:not([type]) {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.92rem;
+  font-family: inherit;
+  font-weight: 500;
+}
+.brandkit-field input[type='color'] { width: 3.4rem; height: 2.2rem; padding: 0.15rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
+.brandkit-field input[type='file'] { font-size: 0.85rem; font-weight: 400; }
+.brandkit-preview { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; }
+.brandkit-preview img { max-height: 60px; max-width: 200px; border: 1px solid var(--border); border-radius: 8px; padding: 0.35rem; background: #fff; }
+.brandkit-template { display: flex; align-items: center; gap: 0.8rem; margin-top: 1.2rem; flex-wrap: wrap; }
+.brandkit-swatches { display: flex; gap: 0.4rem; margin-top: 0.9rem; }
+.brandkit-swatch { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border); display: inline-block; }
+.brandkit-note { margin-top: 0.8rem; font-size: 0.88rem; color: var(--text-2); }
+
 /* ---------- Print (export PDF) ---------- */
 @media print {
   .site-header, .site-footer, .uploader, .dataset-actions, .variants,
@@ -585,4 +628,5 @@ main { min-height: 60vh; }
   .price-card.featured { transform: none; }
   .shelf-label { width: 74px; }
   .account-dl, .account-plans { grid-template-columns: 1fr; }
+  .trame-editor-cols, .brandkit-grid { grid-template-columns: 1fr; }
 }

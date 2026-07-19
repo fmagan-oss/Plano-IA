@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { parseWorkbook, readRawRows, FIELD_LABELS } from '../lib/parse';
 import { generatePlanogram, STRATEGY_TEXT, DEFAULT_FIXTURE } from '../lib/planogram';
 import { SAMPLE_PRODUCTS, SAMPLE_FILENAME } from '../lib/sample';
-import type { Fixture, ParsedDataset, StrategyKey } from '../lib/types';
+import type { BuyerFrame as BuyerFrameData, DeckEdit, Fixture, ParsedDataset, StrategyKey } from '../lib/types';
+import type { BrandKit } from '../lib/brand-kit';
 import { T, useLocale } from '../lib/i18n';
 import { createClient } from '../lib/supabase/client';
 import { exportPptx } from '../lib/pptx-export';
@@ -33,14 +34,27 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
   const [aiMapping, setAiMapping] = useState(false);
   const [aiNote, setAiNote] = useState<string | null>(null);
   const [reportNote, setReportNote] = useState<string | null>(null);
+  const [deckEdits, setDeckEdits] = useState<Partial<Record<StrategyKey, DeckEdit>>>({});
+  const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
 
   const maxVariants = pro ? 4 : 1;
 
   // "Mes présentations": saving requires a signed-in Supabase user.
+  // The brand kit (colors/logo/name applied to exports) loads alongside.
   useEffect(() => {
     const supabase = createClient();
     if (!supabase) return;
-    supabase.auth.getUser().then(({ data }) => setCanSave(!!data.user));
+    supabase.auth.getUser().then(async ({ data }) => {
+      setCanSave(!!data.user);
+      if (data.user) {
+        const { data: kit } = await supabase
+          .from('brand_kits')
+          .select('company, logo_data, colors')
+          .eq('user_id', data.user.id)
+          .maybeSingle();
+        if (kit) setBrandKit({ company: kit.company, logoData: kit.logo_data, colors: kit.colors });
+      }
+    });
   }, []);
 
   // Reopen a saved presentation (?pres=<id>) — RLS restricts to the owner.
@@ -54,12 +68,13 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
       .eq('id', presentationId)
       .single()
       .then(({ data }) => {
-        const pl = data?.payload as { dataset?: ParsedDataset; fileName?: string; fixture?: Fixture; active?: StrategyKey } | undefined;
+        const pl = data?.payload as { dataset?: ParsedDataset; fileName?: string; fixture?: Fixture; active?: StrategyKey; deckEdits?: Partial<Record<StrategyKey, DeckEdit>> } | undefined;
         if (pl?.dataset?.products?.length) {
           setDataset(pl.dataset);
           setFileName(pl.fileName || data?.name || '');
           if (pl.fixture) setFixture(pl.fixture);
           if (pl.active) setActive(pl.active);
+          setDeckEdits(pl.deckEdits ?? {});
         }
       });
   }, [presentationId]);
@@ -80,7 +95,7 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
     const { error: err } = await supabase.from('presentations').insert({
       user_id: user.id,
       name,
-      payload: { fileName, dataset, fixture, active },
+      payload: { fileName, dataset, fixture, active, deckEdits },
     });
     setSaveState(err ? 'error' : 'saved');
     setTimeout(() => setSaveState('idle'), 2500);
@@ -153,6 +168,20 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
     return generatePlanogram(products, active, fixture, locale);
   }, [products, active, fixture, locale]);
 
+  // Trame effective = trame générée + retouches utilisateur de la variante.
+  const effFrame: BuyerFrameData | null = useMemo(() => {
+    if (!plano) return null;
+    const e = deckEdits[active];
+    if (!e) return plano.buyerFrame;
+    return {
+      headline: e.headline ?? plano.buyerFrame.headline,
+      categorySummary: e.categorySummary ?? plano.buyerFrame.categorySummary,
+      keyMoves: e.keyMoves ?? plano.buyerFrame.keyMoves,
+      noveltyPitch: e.noveltyPitch ?? plano.buyerFrame.noveltyPitch,
+      expectedImpact: e.expectedImpact ?? plano.buyerFrame.expectedImpact,
+    };
+  }, [plano, deckEdits, active]);
+
   // Key fields still missing after heuristic detection → offer the AI net.
   const hasGaps = !!dataset && (
     (!dataset.detectedColumns.ean && !dataset.detectedColumns.name) ||
@@ -223,6 +252,8 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
         strategyLabel: STRATEGY_TEXT[locale][active].label,
         fixture,
         locale,
+        frame: effFrame ?? undefined,
+        kit: brandKit,
       });
     } finally {
       setExporting(false);
@@ -392,7 +423,14 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
                   <Copilot products={products} pro={pro} />
                 </div>
                 <PlanogramView plano={plano} />
-                <BuyerFrame plano={plano} locked={!pro} />
+                {effFrame && (
+                  <BuyerFrame
+                    frame={effFrame}
+                    locked={!pro}
+                    editable={pro}
+                    onSaveEdits={(e) => setDeckEdits((prev) => ({ ...prev, [active]: e }))}
+                  />
+                )}
               </div>
             )
           )}

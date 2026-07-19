@@ -5,6 +5,7 @@ import { getOrCreateProfile, isProActive, isProEntitled } from '../lib/profile';
 import { ManageBillingButton } from '../components/BillingButtons';
 import AccountPlans from '../components/AccountPlans';
 import TeamManager from '../components/TeamManager';
+import BrandKitCard from '../components/BrandKitCard';
 
 export const metadata = { title: 'Mon compte — CatPilot' };
 
@@ -104,6 +105,8 @@ export default async function AccountPage() {
           </p>
         </div>
       )}
+
+      <BrandKitCard />
     </div>
   );
 }

@@ -86,6 +86,15 @@ export interface BuyerFrame {
   expectedImpact: string[];
 }
 
+/** Retouches utilisateur de la trame acheteur (éditeur Pro). */
+export interface DeckEdit {
+  headline?: string;
+  categorySummary?: string;
+  keyMoves?: string[];
+  noveltyPitch?: string[];
+  expectedImpact?: string[];
+}
+
 /** Configuration of the physical furniture (gondole/meuble). */
 export interface Fixture {
   shelves: number;
