@@ -18,5 +18,137 @@
       "Qté"
     ],
     "at": "2026-07-19"
+  },
+  "corpus/en-npd.xlsx": {
+    "headers": [
+      "Brand",
+      "Product",
+      "Revenue",
+      "Units",
+      "NPD"
+    ],
+    "at": "2026-07-19"
+  },
+  "corpus/en-supplier.xlsx": {
+    "headers": [
+      "Supplier",
+      "Description",
+      "Value Sales",
+      "Total Units",
+      "Category"
+    ],
+    "at": "2026-07-19"
+  },
+  "corpus/en-vendor.xlsx": {
+    "headers": [
+      "Vendor",
+      "Item Description",
+      "Dollar Sales",
+      "Unit Sales",
+      "Avg Price"
+    ],
+    "at": "2026-07-19"
+  },
+  "corpus/fr-casse-accents.xlsx": {
+    "headers": [
+      "MARQUE",
+      "DESIGNATION",
+      "CA  HT",
+      "QTE",
+      "NOUVEAUTE"
+    ],
+    "at": "2026-07-19"
+  },
+  "corpus/fr-colonnes-parasites.xlsx": {
+    "headers": [
+      "Période",
+      "Zone",
+      "Marque",
+      "Désig.",
+      "CA HT",
+      "Qté",
+      "Commentaire"
+    ],
+    "at": "2026-07-19"
+  },
+  "corpus/fr-csv-pv.csv": {
+    "headers": [
+      "Fournisseur",
+      "Réf.",
+      "Ventes en valeur",
+      "UVC",
+      "Prix moyen"
+    ],
+    "at": "2026-07-19"
+  },
+  "corpus/fr-desig-point.xlsx": {
+    "headers": [
+      "Fabr.",
+      "Désig.",
+      "Code EAN13",
+      "Ventes valeur €",
+      "Qté"
+    ],
+    "at": "2026-07-19"
+  },
+  "corpus/fr-entetes-ligne3.xlsx": {
+    "headers": [
+      "Fab.",
+      "Désig.",
+      "Gencod",
+      "Ventes valeur",
+      "Ventes volume"
+    ],
+    "at": "2026-07-19"
+  },
+  "corpus/fr-marche-segment.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "CA (€)",
+      "Quantités",
+      "Marché"
+    ],
+    "at": "2026-07-19"
+  },
+  "corpus/fr-mq-exact.xlsx": {
+    "headers": [
+      "Mq",
+      "Produit",
+      "Chiffre d’affaires",
+      "Unités"
+    ],
+    "at": "2026-07-19"
+  },
+  "corpus/fr-pv-moyen.xlsx": {
+    "headers": [
+      "Marque",
+      "Désignation article",
+      "CA TTC",
+      "Volume UVC",
+      "PV moyen",
+      "Marché"
+    ],
+    "at": "2026-07-19"
+  },
+  "corpus/fr-ref-point.xlsx": {
+    "headers": [
+      "Marque",
+      "Réf.",
+      "CA HT (K€)",
+      "Qtés vendues",
+      "Segment"
+    ],
+    "at": "2026-07-19"
+  },
+  "corpus/fr-uvc.xlsx": {
+    "headers": [
+      "Fournisseur",
+      "Libellé produit",
+      "Ventes en valeur (€)",
+      "Nb UVC",
+      "PV TTC"
+    ],
+    "at": "2026-07-19"
   }
 }

@@ -7,7 +7,10 @@
     "manufacturer",
     "enseigne marque",
     "fab",
-    "fab."
+    "fab.",
+    "vendor",
+    "supplier",
+    "mq"
   ],
   "ean": [
     "ean",
@@ -31,7 +34,10 @@
     "designation",
     "désignation",
     "desig",
-    "désig"
+    "désig",
+    "desig.",
+    "ref.",
+    "description"
   ],
   "segment": [
     "segment",
@@ -41,7 +47,8 @@
     "category",
     "famille",
     "rayon",
-    "univers"
+    "univers",
+    "marche"
   ],
   "revenue": [
     "ca",
@@ -54,7 +61,8 @@
     "ca ttc",
     "ca ht",
     "revenue",
-    "turnover"
+    "turnover",
+    "dollar sales"
   ],
   "volume": [
     "volume",
@@ -68,7 +76,9 @@
     "ventes unites",
     "pieces",
     "qte",
-    "qté"
+    "qté",
+    "uvc",
+    "unit sales"
   ],
   "margin": [
     "marge",
@@ -84,7 +94,9 @@
     "pvc",
     "prix de vente",
     "tarif",
-    "prix unitaire"
+    "prix unitaire",
+    "pv ttc",
+    "pv moyen"
   ],
   "isNew": [
     "nouveaute",
@@ -92,6 +104,7 @@
     "nouveau",
     "new",
     "innovation",
-    "lancement"
+    "lancement",
+    "npd"
   ]
 }

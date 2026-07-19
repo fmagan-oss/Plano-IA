@@ -31,7 +31,7 @@ const PROCESSED = join(DATA_DIR, 'processed.json');
 const ALIASES = JSON.parse(readFileSync(join(root, 'app/lib/column-aliases.json'), 'utf8'));
 
 /* — même normalisation/détection que app/lib/parse.ts (à garder en phase) — */
-const norm = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const norm = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘]/g, "'").toLowerCase().trim();
 function detectCol(headers, aliases) {
   const nh = headers.map(norm);
   for (let i = 0; i < nh.length; i++) if (aliases.some((a) => nh[i] === norm(a))) return i;
