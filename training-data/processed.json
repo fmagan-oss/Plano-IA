@@ -290,5 +290,25 @@
       "Ventes (UVC)"
     ],
     "at": "2026-07-20"
+  },
+  "corpus/fr-entetes-2-lignes.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "valeur",
+      "volume",
+      "Prix"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/fr-multi-periodes.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "CA P6",
+      "CA P7",
+      "Qté P7"
+    ],
+    "at": "2026-07-20"
   }
 }
