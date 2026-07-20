@@ -10,20 +10,31 @@ silencieux. Rien n'est modifié sans validation.
 
 ## État des 12 règles
 
-| Règle | Sujet | État actuel du robot | À faire |
+| Règle | Sujet | État | Preuve |
 |---|---|---|---|
-| R1 | préférer l'année courante (YA) | risque de capter YA | démoter les en-têtes YA/LY/PY/N-1 ; champ N-1 séparé |
-| R2 | marque ≠ fabricant | « première trouvée » | deux champs distincts ; défaut = marque |
-| R3 | ne jamais sommer une moyenne | partiel (SHARE_RE) | généraliser via la signature `sommable:false` |
-| R4 | frontière de mot (alias courts) | **fait** | — |
-| R5 | une seule période | partiel (écart CA/volume signalé) | formats croisé / long (voir Partie 3) |
-| R6 | une seule devise / unité | absent | lire l'unité dans l'intitulé (k€, GBP, colis) |
-| R7 | exclure les agrégats par le calcul | par libellé (TOTAL_RE) | détecter « valeur ≈ Σ des sœurs » |
-| R8 | colonne non résolue signalée | partiel | nommer la colonne + 3 valeurs |
-| R9 | PDL sur le linéaire développé | absent (par marque/type) | facings × largeur ; signaler si largeurs absentes |
-| R10 | circularité (CA/facing) | absent | productivité par facing, pas CA brut |
-| R11 | plancher anti-rupture | absent | facings_mini via rotation |
-| R12 | période promo exclue | absent | base d'allocation hors promo |
+| R1 | préférer l'année courante (YA) | **FAIT** | trap-ya : CA = « Sales Value », pas « Sales Value YA » |
+| R2 | marque ≠ fabricant | **FAIT** | trap-fab : Marque = « BRAND », pas « MANUFACTURER » |
+| R3 | ne jamais sommer une moyenne | **FAIT** | trap-vmh : CA = « CA HT », pas « VMH » (signature `sommable:false`) |
+| R4 | frontière de mot (alias courts) | **FAIT** | « ca » ne capture pas « Catégorie » |
+| R6 | unité déclarée (k€/M€, devise) | **FAIT** | k€ → ×1000 ; £/GBP → avertissement devise mixte |
+| R7 | exclure les agrégats par le calcul | **FAIT** | trap-agg : « Café Or » (= Σ des autres) exclu, sans libellé « total » |
+| R8 | colonne/champ manquant signalé | **FAIT (partiel)** | avertissements par champ ; nommage des colonnes-mesure non résolues : à finir |
+| R5 | une seule période (croisé / long) | **à construire** | croisé encore refusé ; long non filtré (Partie 3, EX05/EX06) |
+| R9 | PDL sur le linéaire développé | **à construire** | moteur d'allocation (EX09) |
+| R10 | circularité (CA/facing) | **à construire** | moteur d'allocation (EX10) |
+| R11 | plancher anti-rupture | **à construire** | moteur d'allocation (EX11) |
+| R12 | période promo exclue | **à construire** | moteur d'allocation (EX08) |
+
+**Fait (briques 1 & 2 — la couche d'identification du parseur) :** dictionnaire
+459 alias adopté, anti-alias, YA écarté du courant, moyennes non sommables,
+repli fabricant, unités k€/M€, agrégat détecté par le calcul. Dictionnaire +
+signatures : `app/lib/column-dictionary.json`, `column-aliases.json`,
+`column-signatures.json`. Exercices EX09/10/11 + attendus dans le corpus de nuit.
+
+**Reste (briques 3 & 4) :** R5 (lire vraiment croisé/long) et R9–R12 (le moteur
+d'**allocation** planogramme — productivité, rotation, PDL sur linéaire, hors
+promo). Ce n'est plus le parseur mais l'allocateur ; confié à la routine
+nocturne, test-d'abord, EX05/06/08/09/10/11 comme non-régression.
 
 ## Ordre proposé (à valider par François)
 

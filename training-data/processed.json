@@ -314,5 +314,36 @@
   "corpus/circana-crosstab-fictif.xlsx": {
     "report": true,
     "at": "2026-07-20"
+  },
+  "corpus/EX09_PDM_vs_PDL.xlsx": {
+    "headers": [
+      "Marque",
+      "CA (€)",
+      "Facings actuels",
+      "Largeur facing (cm)"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/EX10_circularite_CA_facing.xlsx": {
+    "headers": [
+      "EAN",
+      "Libelle",
+      "CA (€)",
+      "Facings actuels",
+      "Rotation (UVC/mag/sem)"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/EX11_rotation_rupture.xlsx": {
+    "headers": [
+      "EAN",
+      "Libelle",
+      "CA (€)",
+      "Rotation (UVC/mag/sem)",
+      "Facings actuels",
+      "Capacite par facing (UVC)",
+      "Reappro (jours)"
+    ],
+    "at": "2026-07-20"
   }
 }

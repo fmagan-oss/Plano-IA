@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import type { ParsedDataset, Product } from './types';
 import type { Locale } from './i18n';
 import ALIASES_JSON from './column-aliases.json';
+import SIGN_JSON from './column-signatures.json';
 
 /**
  * Fuzzy column detection for Nielsen / Circana style exports.
@@ -73,28 +74,67 @@ function normalize(s: string): string {
 const SHARE_RE = /share|part de marche|pdm|acv|distribution|poids|weighted|vmh|(^|[^a-z0-9])(dn|dv)([^a-z0-9]|$)/;
 // Lignes d'agrégats : « Total », « Total catégorie », « Sous-total », « Grand total », « Ensemble marché »…
 const TOTAL_RE = /^(sous.|ss |grand )?total\b|^ensemble\b/;
-const NUMERIC_FIELDS = new Set(['revenue', 'volume', 'margin', 'price']);
+// Mesures sommables (ventes) : elles seules excluent les moyennes/parts et l'an dernier.
+const SUMMABLE_SALES = new Set(['revenue', 'volume', 'margin']);
+const CURRENT_PERIOD = new Set(['revenue', 'volume']);
 
-function detectColumn(headers: string[], aliases: string[], blockShares = false): number {
-  const normHeaders = headers.map(normalize).map((h) => (blockShares && SHARE_RE.test(h) ? '' : h));
-  // 1) exact match
-  for (let i = 0; i < normHeaders.length; i++) {
-    if (normHeaders[i] && aliases.some((a) => normHeaders[i] === normalize(a))) return i;
+// Dérivé du dictionnaire (docs/formation) : anti-alias par champ (R1/R2),
+// marqueurs année précédente (R1), repli fabricant (R2), colonnes non
+// sommables (R3 — moyennes, parts, indices : jamais prises pour des ventes).
+const ANTI_ALIASES = (SIGN_JSON as { antiAliases: Record<string, string[]> }).antiAliases;
+const YA_TERMS = [...(SIGN_JSON as { yaMarkers: string[] }).yaMarkers, ...(SIGN_JSON as { yaAliases: string[] }).yaAliases].map(normalize);
+const FABRICANT_ALIASES = (SIGN_JSON as { fabricant: string[] }).fabricant;
+const NON_SUMMABLE = (SIGN_JSON as { nonSummable: string[] }).nonSummable.map(normalize);
+
+/** Un en-tête normalisé matche-t-il l'un des alias (frontière de mot si ≤ 2 car.) ? */
+function headerMatches(normHeader: string, aliasesNorm: string[]): boolean {
+  return aliasesNorm.some((na) => {
+    if (!na) return false;
+    if (na.length <= 2) return new RegExp(`(^|[^a-z0-9])${na}([^a-z0-9]|$)`).test(normHeader);
+    return normHeader.includes(na);
+  });
+}
+
+interface DetectOpts {
+  anti?: string[];
+  blockNonSummable?: boolean; // R3 : exclure moyennes/parts/indices
+  blockYA?: boolean; // R1 : exclure l'année précédente pour la période courante
+}
+
+function detectColumn(headers: string[], aliases: string[], opts: DetectOpts = {}): number {
+  const antiN = (opts.anti ?? []).map(normalize);
+  // Un en-tête est éligible s'il n'est ni un anti-alias, ni (le cas échéant)
+  // une moyenne/part, ni une colonne d'année précédente.
+  const eligible = headers.map(normalize).map((h) => {
+    if (!h) return '';
+    if (antiN.length && headerMatches(h, antiN)) return '';
+    if (opts.blockNonSummable && (SHARE_RE.test(h) || headerMatches(h, NON_SUMMABLE))) return '';
+    if (opts.blockYA && headerMatches(h, YA_TERMS)) return '';
+    return h;
+  });
+  const aliasesN = aliases.map(normalize);
+  // 1) exact
+  for (let i = 0; i < eligible.length; i++) {
+    if (eligible[i] && aliasesN.includes(eligible[i])) return i;
   }
-  // 2) substring match (longest alias first to prefer specificity); short
-  //    aliases (≤ 2 letters, e.g. « ca ») require word boundaries, otherwise
-  //    « Catégorie » would be captured as chiffre d'affaires.
-  const sorted = [...aliases].sort((a, b) => b.length - a.length);
-  for (let i = 0; i < normHeaders.length; i++) {
-    if (!normHeaders[i]) continue;
-    const hit = sorted.some((a) => {
-      const na = normalize(a);
-      if (na.length <= 2) return new RegExp(`(^|[^a-z0-9])${na}([^a-z0-9]|$)`).test(normHeaders[i]);
-      return normHeaders[i].includes(na);
-    });
-    if (hit) return i;
+  // 2) sous-chaîne (alias le plus long d'abord ; frontière de mot si ≤ 2 car.)
+  const sorted = [...aliasesN].sort((a, b) => b.length - a.length);
+  for (let i = 0; i < eligible.length; i++) {
+    if (eligible[i] && headerMatches(eligible[i], sorted)) return i;
   }
   return -1;
+}
+
+/** Détection d'un champ domaine, avec sa signature (anti-alias, non-sommable, YA, repli fabricant). */
+function detectField(headers: string[], field: string): number {
+  let i = detectColumn(headers, COLUMN_ALIASES[field], {
+    anti: ANTI_ALIASES[field],
+    blockNonSummable: SUMMABLE_SALES.has(field),
+    blockYA: CURRENT_PERIOD.has(field),
+  });
+  // R2 : la marque prime ; le fabricant n'est un repli que si aucune marque.
+  if (i < 0 && field === 'brand') i = detectColumn(headers, FABRICANT_ALIASES, {});
+  return i;
 }
 
 function findHeaderRow(rows: unknown[][]): number {
@@ -116,7 +156,7 @@ function pickBestSheet(wb: XLSX.WorkBook): { sheetName: string; rows: unknown[][
     }) as unknown as unknown[][];
     const headers = (rows[findHeaderRow(rows)] || []).map((c) => (c == null ? '' : String(c)));
     const score = Object.keys(COLUMN_ALIASES).filter(
-      (field) => detectColumn(headers, COLUMN_ALIASES[field], NUMERIC_FIELDS.has(field)) >= 0
+      (field) => detectField(headers, field) >= 0
     ).length;
     if (!best || score > best.score) best = { sheetName, rows, score };
   }
@@ -220,7 +260,7 @@ export function parseWorkbook(
   const idx: Record<string, number> = {};
   const detectedColumns: Record<string, string | null> = {};
   for (const field of Object.keys(COLUMN_ALIASES)) {
-    const i = detectColumn(headers, COLUMN_ALIASES[field], NUMERIC_FIELDS.has(field));
+    const i = detectField(headers, field);
     idx[field] = i;
     detectedColumns[field] = i >= 0 ? headers[i] : null;
   }
@@ -251,6 +291,17 @@ export function parseWorkbook(
     );
     idx.volume = -1;
     detectedColumns.volume = null;
+  }
+
+  // --- R6 : unité déclarée dans l'intitulé (k€/M€ changent l'échelle du CA) ---
+  const revHeaderN = normalize(detectedColumns.revenue || '');
+  const revenueScale = /(m€|meur|m eur)/.test(revHeaderN) ? 1_000_000 : /(k€|keur|k eur)/.test(revHeaderN) ? 1000 : 1;
+  if (idx.revenue >= 0 && headers.some((h) => /£|\bgbp\b/i.test(String(h)))) {
+    warnings.push(
+      locale === 'fr'
+        ? 'Devise mixte détectée (£/GBP) : vérifiez que le CA est dans une seule devise avant toute somme.'
+        : 'Mixed currency (£/GBP) detected: check sales are in a single currency before summing.'
+    );
   }
 
   // --- Diagnostics métier précis ---
@@ -291,7 +342,7 @@ export function parseWorkbook(
       totals++;
       continue;
     }
-    const revenue = idx.revenue >= 0 ? toNumber(row[idx.revenue]) : 0;
+    const revenue = idx.revenue >= 0 ? toNumber(row[idx.revenue]) * revenueScale : 0;
     const volume = idx.volume >= 0 ? toNumber(row[idx.volume]) : 0;
     let margin = idx.margin >= 0 ? toNumber(row[idx.margin]) : 0;
     const price = idx.price >= 0 ? toNumber(row[idx.price]) : 0;
@@ -313,6 +364,26 @@ export function parseWorkbook(
       price,
       isNew,
     });
+  }
+
+  // --- R7 : agrégat détecté par le CALCUL (au-delà du libellé) ---
+  // Une ligne dont le CA (ou le volume) ≈ la somme des autres EST un total,
+  // même si elle s'appelle « Ensemble », « Autres » ou porte un nom de marque
+  // ombrelle. On la retire pour ne pas lui donner du linéaire (EX01).
+  for (const key of ['revenue', 'volume'] as const) {
+    for (let pass = 0; pass < 3 && products.length >= 3; pass++) {
+      const sum = products.reduce((a, p) => a + p[key], 0);
+      if (sum <= 0) break;
+      const hit = products.findIndex((p) => p[key] > 0 && Math.abs(p[key] - (sum - p[key])) / (sum - p[key] || 1) < 0.005);
+      if (hit < 0) break;
+      const removed = products.splice(hit, 1)[0];
+      totals++;
+      warnings.push(
+        locale === 'fr'
+          ? `Ligne « ${removed.brand}${removed.name && removed.name !== removed.brand ? ' / ' + removed.name : ''} » exclue : sa valeur égale la somme des autres (agrégat détecté par le calcul).`
+          : `Row “${removed.brand}” excluded: its value equals the sum of the others (aggregate detected by calculation).`
+      );
+    }
   }
 
   if (totals > 0) {

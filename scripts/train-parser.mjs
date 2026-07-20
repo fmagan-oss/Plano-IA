@@ -29,6 +29,7 @@ const DATA_DIR = join(root, 'training-data');
 const CORPUS = join(DATA_DIR, 'corpus');
 const PROCESSED = join(DATA_DIR, 'processed.json');
 const ALIASES = JSON.parse(readFileSync(join(root, 'app/lib/column-aliases.json'), 'utf8'));
+const SIGN = JSON.parse(readFileSync(join(root, 'app/lib/column-signatures.json'), 'utf8'));
 
 /* — même normalisation/détection que app/lib/parse.ts (à garder en phase) — */
 const norm = (s) =>
@@ -40,26 +41,45 @@ const norm = (s) =>
     .replace(/\s+/g, ' ')
     .toLowerCase()
     .trim();
-// Colonnes de parts/distribution (PDM, share, % ACV, DN/DV…) : jamais des
-// ventes — exclues de la détection des champs numériques (CA, volume, prix, marge).
 const SHARE_RE = /share|part de marche|pdm|acv|distribution|poids|weighted|vmh|(^|[^a-z0-9])(dn|dv)([^a-z0-9]|$)/;
-const NUMERIC_FIELDS = new Set(['revenue', 'volume', 'margin', 'price']);
-function detectCol(headers, aliases, blockShares = false) {
-  const nh = headers.map(norm).map((h) => (blockShares && SHARE_RE.test(h) ? '' : h));
-  for (let i = 0; i < nh.length; i++) if (nh[i] && aliases.some((a) => nh[i] === norm(a))) return i;
-  const sorted = [...aliases].sort((a, b) => b.length - a.length);
-  for (let i = 0; i < nh.length; i++) {
-    if (!nh[i]) continue;
-    const hit = sorted.some((a) => {
-      const na = norm(a);
-      // Alias courts (≤ 2 lettres, ex. « ca ») : frontière de mot, sinon
-      // « Catégorie » serait capturée par « ca ».
-      if (na.length <= 2) return new RegExp(`(^|[^a-z0-9])${na}([^a-z0-9]|$)`).test(nh[i]);
-      return nh[i].includes(na);
-    });
-    if (hit) return i;
-  }
+// Signatures issues du dictionnaire (docs/formation) — R1/R2/R3, comme parse.ts.
+const ANTI_ALIASES = SIGN.antiAliases;
+const YA_TERMS = [...SIGN.yaMarkers, ...SIGN.yaAliases].map(norm);
+const FABRICANT_ALIASES = SIGN.fabricant;
+const NON_SUMMABLE = SIGN.nonSummable.map(norm);
+const SUMMABLE_SALES = new Set(['revenue', 'volume', 'margin']);
+const CURRENT_PERIOD = new Set(['revenue', 'volume']);
+
+function headerMatches(nh, aliasesNorm) {
+  return aliasesNorm.some((na) => {
+    if (!na) return false;
+    if (na.length <= 2) return new RegExp(`(^|[^a-z0-9])${na}([^a-z0-9]|$)`).test(nh);
+    return nh.includes(na);
+  });
+}
+function detectCol(headers, aliases, opts = {}) {
+  const antiN = (opts.anti ?? []).map(norm);
+  const eligible = headers.map(norm).map((h) => {
+    if (!h) return '';
+    if (antiN.length && headerMatches(h, antiN)) return '';
+    if (opts.blockNonSummable && (SHARE_RE.test(h) || headerMatches(h, NON_SUMMABLE))) return '';
+    if (opts.blockYA && headerMatches(h, YA_TERMS)) return '';
+    return h;
+  });
+  const aliasesN = aliases.map(norm);
+  for (let i = 0; i < eligible.length; i++) if (eligible[i] && aliasesN.includes(eligible[i])) return i;
+  const sorted = [...aliasesN].sort((a, b) => b.length - a.length);
+  for (let i = 0; i < eligible.length; i++) if (eligible[i] && headerMatches(eligible[i], sorted)) return i;
   return -1;
+}
+function detectField(headers, field) {
+  let i = detectCol(headers, ALIASES[field], {
+    anti: ANTI_ALIASES[field],
+    blockNonSummable: SUMMABLE_SALES.has(field),
+    blockYA: CURRENT_PERIOD.has(field),
+  });
+  if (i < 0 && field === 'brand') i = detectCol(headers, FABRICANT_ALIASES, {});
+  return i;
 }
 
 function headerRowOf(rows) {
@@ -97,7 +117,7 @@ function analyzeFile(path) {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, blankrows: false });
     const headers = (rows[headerRowOf(rows)] || []).map((c) => (c == null ? '' : String(c)));
     const score = Object.keys(ALIASES).filter(
-      (field) => detectCol(headers, ALIASES[field], NUMERIC_FIELDS.has(field)) >= 0
+      (field) => detectField(headers, field) >= 0
     ).length;
     if (!best || score > best.score) best = { headers, score };
   }
@@ -135,7 +155,7 @@ for (const { dir, f, tag } of files) {
   const mapping = {};
   const matchedIdx = new Set();
   for (const field of Object.keys(ALIASES)) {
-    const i = detectCol(headers, ALIASES[field], NUMERIC_FIELDS.has(field));
+    const i = detectField(headers, field);
     mapping[field] = i >= 0 ? headers[i] : null;
     if (i >= 0) matchedIdx.add(i);
   }
@@ -154,10 +174,12 @@ for (const { dir, f, tag } of files) {
   }
   // Même règle que l'app : bloquant si pas de marque, ni EAN ni libellé,
   // ou ni CA ni volume. Un mapping contraire aux attendus est aussi bloquant.
+  // Même garde-fou que l'app : n'est réellement bloquant (« trou à combler »)
+  // que si l'on ne peut identifier les produits — ni marque ni EAN — ou si le
+  // mapping contredit un attendu. Le reste (pas de libellé, pas de CA/volume…)
+  // est un avertissement : l'app produit un plan dégradé, pas un alias manquant.
   const critical =
-    missing.includes('brand') ||
-    (missing.includes('ean') && missing.includes('name')) ||
-    (missing.includes('revenue') && missing.includes('volume')) ||
+    (missing.includes('brand') && missing.includes('ean')) ||
     wrongMap.length > 0;
   if (critical) report.gaps++;
   report.files.push({ file: `${tag}/${f}`, mapping, missing, orphans, wrongMap });
