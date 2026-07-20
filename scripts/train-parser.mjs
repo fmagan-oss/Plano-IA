@@ -42,7 +42,7 @@ const norm = (s) =>
     .trim();
 // Colonnes de parts/distribution (PDM, share, % ACV, DN/DV…) : jamais des
 // ventes — exclues de la détection des champs numériques (CA, volume, prix, marge).
-const SHARE_RE = /share|part de marche|pdm|acv|distribution|poids|weighted|(^|[^a-z0-9])(dn|dv)([^a-z0-9]|$)/;
+const SHARE_RE = /share|part de marche|pdm|acv|distribution|poids|weighted|vmh|(^|[^a-z0-9])(dn|dv)([^a-z0-9]|$)/;
 const NUMERIC_FIELDS = new Set(['revenue', 'volume', 'margin', 'price']);
 function detectCol(headers, aliases, blockShares = false) {
   const nh = headers.map(norm).map((h) => (blockShares && SHARE_RE.test(h) ? '' : h));
@@ -69,10 +69,29 @@ function headerRowOf(rows) {
   return 0;
 }
 
+// Rapport panel croisé (Circana/Nielsen) : mesure en colonne, périodes/semaines
+// et enseignes en colonnes, hiérarchie produits. Non lisible « à plat » : à NE
+// PAS traiter comme un manque d'alias (ce serait un raccourci faux).
+function looksLikeCrossTabReport(wb) {
+  for (const sn of wb.SheetNames.slice(0, 12)) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, blankrows: false });
+    for (let i = 0; i < Math.min(rows.length, 6); i++) {
+      const cells = (rows[i] || []).map((c) => (c == null ? '' : String(c)));
+      if (cells.map(norm).some((c) => c === 'mesures' || c === 'measures' || c === 'mesure')) return true;
+      const periodCols = cells.filter(
+        (c) => /\bp\d{1,2}\b.*\bdu\b.*\bau\b/i.test(c) || /\bsem\b.*\bdu\b/i.test(c) || /\bdu\b \d{2}-\d{2}-\d{4} \bau\b/i.test(c)
+      ).length;
+      if (periodCols >= 3) return true;
+    }
+  }
+  return false;
+}
+
 // Certains exports ont une page de garde (« Sommaire ») : on choisit la
 // feuille dont la ligne d'en-têtes fait matcher le plus de champs.
-function headersOf(path) {
+function analyzeFile(path) {
   const wb = XLSX.readFile(path);
+  if (looksLikeCrossTabReport(wb)) return { headers: [], report: true };
   let best = null;
   for (const sn of wb.SheetNames.slice(0, 8)) {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, blankrows: false });
@@ -82,7 +101,7 @@ function headersOf(path) {
     ).length;
     if (!best || score > best.score) best = { headers, score };
   }
-  return best ? best.headers : [];
+  return { headers: best ? best.headers : [], report: false };
 }
 
 if (!existsSync(INBOX)) mkdirSync(INBOX, { recursive: true });
@@ -98,12 +117,19 @@ const files = [
 const report = { files: [], gaps: 0 };
 
 for (const { dir, f, tag } of files) {
-  let headers;
+  let headers, isReport;
   try {
-    headers = headersOf(join(dir, f));
+    ({ headers, report: isReport } = analyzeFile(join(dir, f)));
   } catch (e) {
     report.files.push({ file: `${tag}/${f}`, error: String(e.message || e) });
     report.gaps++;
+    continue;
+  }
+  // Rapport croisé Circana/Nielsen : format non lisible à plat, PAS un manque
+  // d'alias — on le signale sans le compter comme trou à combler.
+  if (isReport) {
+    report.files.push({ file: `${tag}/${f}`, reportFormat: true });
+    processed[`${tag}/${f}`] = { report: true, at: new Date().toISOString().slice(0, 10) };
     continue;
   }
   const mapping = {};
@@ -147,6 +173,7 @@ if (process.argv.includes('--json')) {
   for (const r of report.files) {
     console.log(`\n▸ ${r.file}`);
     if (r.error) { console.log(`  ERREUR : ${r.error}`); continue; }
+    if (r.reportFormat) { console.log('  format rapport panel croisé (Circana/Nielsen) — non lisible à plat, ce n’est pas un manque d’alias.'); continue; }
     console.log(`  champs manquants : ${r.missing.length ? r.missing.join(', ') : 'aucun ✓'}`);
     if (r.orphans.length) console.log(`  en-têtes non reconnus : ${r.orphans.map((o) => `« ${o} »`).join(', ')}`);
     for (const w of r.wrongMap || []) {

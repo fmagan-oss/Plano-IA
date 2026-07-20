@@ -310,5 +310,9 @@
       "Qté P7"
     ],
     "at": "2026-07-20"
+  },
+  "corpus/circana-crosstab-fictif.xlsx": {
+    "report": true,
+    "at": "2026-07-20"
   }
 }
