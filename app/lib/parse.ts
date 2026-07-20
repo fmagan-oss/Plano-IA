@@ -70,7 +70,7 @@ function normalize(s: string): string {
 
 // Colonnes de parts/distribution (PDM, share, % ACV, DN/DV, poids…) : jamais
 // des ventes — exclues de la détection des champs numériques.
-const SHARE_RE = /share|part de marche|pdm|acv|distribution|poids|weighted|(^|[^a-z0-9])(dn|dv)([^a-z0-9]|$)/;
+const SHARE_RE = /share|part de marche|pdm|acv|distribution|poids|weighted|vmh|(^|[^a-z0-9])(dn|dv)([^a-z0-9]|$)/;
 // Lignes d'agrégats : « Total », « Total catégorie », « Sous-total », « Grand total », « Ensemble marché »…
 const TOTAL_RE = /^(sous.|ss |grand )?total\b|^ensemble\b/;
 const NUMERIC_FIELDS = new Set(['revenue', 'volume', 'margin', 'price']);
@@ -121,6 +121,40 @@ function pickBestSheet(wb: XLSX.WorkBook): { sheetName: string; rows: unknown[][
     if (!best || score > best.score) best = { sheetName, rows, score };
   }
   return best ?? { sheetName: wb.SheetNames[0], rows: [] };
+}
+
+/**
+ * Reconnaît un rapport panel "croisé" (Circana / NielsenIQ) : la mesure est une
+ * colonne à part (Mesures/Measures), les périodes (P6…P13) ou semaines et les
+ * enseignes sont en colonnes, les produits forment une hiérarchie avec des
+ * lignes de total. Ce n'est PAS un tableau "un produit = une ligne" : le
+ * parseur à plat ne peut pas le lire de façon fiable et doit refuser.
+ */
+function looksLikeCrossTabReport(wb: XLSX.WorkBook): boolean {
+  for (const sheetName of wb.SheetNames.slice(0, 12)) {
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[sheetName], {
+      header: 1,
+      blankrows: false,
+    }) as unknown as unknown[][];
+    for (let i = 0; i < Math.min(rows.length, 6); i++) {
+      const cells = (rows[i] || []).map((c) => (c == null ? '' : String(c)));
+      if (cells.map(normalize).some((c) => c === 'mesures' || c === 'measures' || c === 'mesure')) return true;
+      const periodCols = cells.filter(
+        (c) => /\bp\d{1,2}\b.*\bdu\b.*\bau\b/i.test(c) || /\bsem\b.*\bdu\b/i.test(c) || /\bdu\b \d{2}-\d{2}-\d{4} \bau\b/i.test(c)
+      ).length;
+      if (periodCols >= 3) return true;
+    }
+  }
+  return false;
+}
+
+/** Repère un marqueur de période dans un en-tête (« P6 », « P12 », ou une date). */
+function periodTag(header: string | null): string | null {
+  if (!header) return null;
+  const p = normalize(header).match(/\bp\d{1,2}\b/);
+  if (p) return p[0];
+  const d = header.match(/\d{2}-\d{2}-\d{4}/);
+  return d ? d[0] : null;
 }
 
 function toNumber(v: unknown): number {
@@ -202,6 +236,23 @@ export function parseWorkbook(
     }
   }
 
+  // --- Règle périodes (rigueur : ne jamais mélanger deux périodes) ---
+  // Si le CA et le volume détectés portent des marqueurs de période différents
+  // (« CA P6 » vs « Qté P7 »), on ne combine pas : on garde la période du CA et
+  // on ignore le volume mal aligné, en le signalant. On ne traite pas une donnée
+  // qu'on n'a pas pour la bonne période, et on n'invente rien.
+  const revTag = periodTag(detectedColumns.revenue);
+  const volTag = periodTag(detectedColumns.volume);
+  if (revTag && volTag && revTag !== volTag) {
+    warnings.push(
+      locale === 'fr'
+        ? `Périodes différentes : CA sur « ${detectedColumns.revenue} » (${revTag.toUpperCase()}), volume sur « ${detectedColumns.volume} » (${volTag.toUpperCase()}). CatPilot ne mélange pas deux périodes : l'analyse se fait sur ${revTag.toUpperCase()} et le volume ${volTag.toUpperCase()} est ignoré. Ne gardez qu'une période par fichier pour une analyse volume fiable.`
+        : `Different periods: sales from “${detectedColumns.revenue}” (${revTag.toUpperCase()}), volume from “${detectedColumns.volume}” (${volTag.toUpperCase()}). CatPilot never mixes two periods: analysis uses ${revTag.toUpperCase()} and the ${volTag.toUpperCase()} volume is ignored.`
+    );
+    idx.volume = -1;
+    detectedColumns.volume = null;
+  }
+
   // --- Diagnostics métier précis ---
   if (idx.ean < 0 && idx.name < 0) {
     warnings.push(D.eanAndNameMissing);
@@ -278,12 +329,28 @@ export function parseWorkbook(
         : `${dropped} row(s) skipped: no brand, EAN or product label filled in.`
     );
   }
-  if (!products.length) {
-    const found = headers.filter(Boolean).map((h) => `« ${h} »`).join(', ');
+  // --- Garde-fou anti "résultat faux" (rigueur : refuser plutôt qu'inventer) ---
+  // Mieux vaut un message d'erreur précis qu'un planogramme faux qui a l'air juste.
+  const dataRows = dropped + totals + products.length;
+  const dropRate = dataRows > 0 ? dropped / dataRows : 1;
+  const found = headers.filter(Boolean).map((h) => `« ${h} »`).join(', ');
+
+  // 1) Rapport panel croisé (Circana/Nielsen) sans colonne marque : non lisible à plat.
+  if (looksLikeCrossTabReport(wb) && idx.brand < 0) {
     throw new Error(
       locale === 'fr'
-        ? `Aucune ligne produit exploitable dans « ${fileName} ». Colonnes trouvées : ${found || 'aucune'}. Il faut au minimum une colonne marque, EAN ou libellé produit.`
-        : `No usable product row in “${fileName}”. Columns found: ${found || 'none'}. At least a brand, EAN or product-label column is required.`
+        ? `« ${fileName} » ressemble à un rapport panel croisé (Circana / NielsenIQ) : mesure en colonne, périodes (P6…P13) ou semaines et enseignes en colonnes, produits en hiérarchie avec des lignes de total. CatPilot ne sait pas encore lire ce format de façon fiable — aucun planogramme n'est généré, pour ne pas produire un résultat faux. Exportez un tableau « à plat » (une ligne = un produit ; colonnes Marque, EAN, CA, Volume), ou signalez ce fichier pour la prise en charge du format rapport.`
+        : `“${fileName}” looks like a cross-tab panel report (Circana / NielsenIQ): measure in a column, periods (P6…P13) or weeks and retailers in columns, products in a hierarchy with total rows. CatPilot cannot read this format reliably yet — no planogram is generated, to avoid a wrong result. Export a “flat” table instead (one row per product; Brand, EAN, Sales, Volume columns).`
+    );
+  }
+
+  // 2) Majorité des lignes illisibles, ou aucun moyen d'identifier les produits.
+  if (products.length === 0 || dropRate > 0.6 || (idx.brand < 0 && idx.ean < 0)) {
+    const pct = Math.round(dropRate * 100);
+    throw new Error(
+      locale === 'fr'
+        ? `Lecture non fiable de « ${fileName} » : ${dropped} ligne(s) sur ${dataRows} sans marque, EAN ni libellé exploitable (${pct} %). Ce n'est probablement pas un tableau « un produit par ligne » (feuille de synthèse, en-têtes sur plusieurs lignes, ou export croisé). Colonnes trouvées : ${found || 'aucune'}. Aucun planogramme n'est généré pour éviter un résultat faux : il faut au minimum une colonne marque (ou EAN), et une colonne CA ou volume.`
+        : `Unreliable read of “${fileName}”: ${dropped} of ${dataRows} rows without brand, EAN or usable label (${pct}%). This is likely not a one-product-per-row table. Columns found: ${found || 'none'}. No planogram is generated, to avoid a wrong result: a brand (or EAN) column and a sales or volume column are required.`
     );
   }
 
