@@ -254,5 +254,41 @@
       "Qté"
     ],
     "at": "2026-07-20"
+  },
+  "corpus/en-net-sales.xlsx": {
+    "headers": [
+      "Brand",
+      "Product",
+      "Net Sales",
+      "Units Sold"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/fr-montant.xlsx": {
+    "headers": [
+      "Marque",
+      "Article",
+      "Montant",
+      "Quantité"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/fr-sellout.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "Sell-out valeur",
+      "Sell-out volume"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/fr-ventes-euro.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "Ventes (€)",
+      "Ventes (UVC)"
+    ],
+    "at": "2026-07-20"
   }
 }

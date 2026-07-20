@@ -36,6 +36,7 @@ const norm = (s) =>
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[’‘]/g, "'")
+    .replace(/[()]/g, ' ')
     .replace(/\s+/g, ' ')
     .toLowerCase()
     .trim();

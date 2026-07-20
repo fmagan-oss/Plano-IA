@@ -2,6 +2,6 @@
   "segment": "Catégorie",
   "brand": "Marque",
   "name": "Libellé",
-  "revenue": null,
+  "revenue": "Sell-out net",
   "volume": "Qté"
 }
