@@ -17,7 +17,7 @@
       "Ventes valeur €",
       "Qté"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/en-npd.xlsx": {
     "headers": [
@@ -27,7 +27,7 @@
       "Units",
       "NPD"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/en-supplier.xlsx": {
     "headers": [
@@ -37,7 +37,7 @@
       "Total Units",
       "Category"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/en-vendor.xlsx": {
     "headers": [
@@ -47,7 +47,7 @@
       "Unit Sales",
       "Avg Price"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/fr-casse-accents.xlsx": {
     "headers": [
@@ -57,7 +57,7 @@
       "QTE",
       "NOUVEAUTE"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/fr-colonnes-parasites.xlsx": {
     "headers": [
@@ -69,7 +69,7 @@
       "Qté",
       "Commentaire"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/fr-csv-pv.csv": {
     "headers": [
@@ -79,7 +79,7 @@
       "UVC",
       "Prix moyen"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/fr-desig-point.xlsx": {
     "headers": [
@@ -89,7 +89,7 @@
       "Ventes valeur €",
       "Qté"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/fr-entetes-ligne3.xlsx": {
     "headers": [
@@ -99,7 +99,7 @@
       "Ventes valeur",
       "Ventes volume"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/fr-marche-segment.xlsx": {
     "headers": [
@@ -109,7 +109,7 @@
       "Quantités",
       "Marché"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/fr-mq-exact.xlsx": {
     "headers": [
@@ -118,7 +118,7 @@
       "Chiffre d’affaires",
       "Unités"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/fr-pv-moyen.xlsx": {
     "headers": [
@@ -129,7 +129,7 @@
       "PV moyen",
       "Marché"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/fr-ref-point.xlsx": {
     "headers": [
@@ -139,7 +139,7 @@
       "Qtés vendues",
       "Segment"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
   },
   "corpus/fr-uvc.xlsx": {
     "headers": [
@@ -149,6 +149,110 @@
       "Nb UVC",
       "PV TTC"
     ],
-    "at": "2026-07-19"
+    "at": "2026-07-20"
+  },
+  "corpus/en-iri-classic.xlsx": {
+    "headers": [
+      "Vendor",
+      "UPC",
+      "Product Description",
+      "Base Dollar Sales",
+      "Avg Unit Price",
+      "Weighted Distribution",
+      "Units"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/en-share-trap.xlsx": {
+    "headers": [
+      "Brand",
+      "Item Description",
+      "Value Share %",
+      "Dollar Sales",
+      "Unit Share %",
+      "Unit Sales",
+      "% ACV"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/fr-ca-parentheses.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "CA (K€)",
+      "Qté"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/fr-categorie-ca-trap.xlsx": {
+    "headers": [
+      "Catégorie",
+      "Marque",
+      "Libellé",
+      "Sell-out net",
+      "Qté"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/fr-entetes-multilignes.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé\nproduit",
+      "Ventes\nvaleur (€)",
+      "Ventes\nvolume",
+      "Prix\nmoyen"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/fr-multi-feuilles.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "CA HT",
+      "Qté",
+      "Segment"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/fr-pdm-trap.xlsx": {
+    "headers": [
+      "Marque",
+      "Désig.",
+      "PDM valeur",
+      "CA (K€)",
+      "PDM volume",
+      "Qté",
+      "DN",
+      "DV"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/fr-poids-ca.xlsx": {
+    "headers": [
+      "Marque",
+      "Réf.",
+      "Poids CA",
+      "CA HT",
+      "Qté"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/fr-csv-milliers.csv": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "CA HT",
+      "Qté"
+    ],
+    "at": "2026-07-20"
+  },
+  "corpus/fr-ligne-total.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "CA HT",
+      "Qté"
+    ],
+    "at": "2026-07-20"
   }
 }

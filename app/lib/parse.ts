@@ -62,22 +62,64 @@ function normalize(s: string): string {
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[’‘]/g, "'")
+    .replace(/\s+/g, ' ')
     .toLowerCase()
     .trim();
 }
 
-function detectColumn(headers: string[], aliases: string[]): number {
-  const normHeaders = headers.map(normalize);
+// Colonnes de parts/distribution (PDM, share, % ACV, DN/DV, poids…) : jamais
+// des ventes — exclues de la détection des champs numériques.
+const SHARE_RE = /share|part de marche|pdm|acv|distribution|poids|weighted|(^|[^a-z0-9])(dn|dv)([^a-z0-9]|$)/;
+// Lignes d'agrégats : « Total », « Total catégorie », « Sous-total », « Grand total », « Ensemble marché »…
+const TOTAL_RE = /^(sous.|ss |grand )?total\b|^ensemble\b/;
+const NUMERIC_FIELDS = new Set(['revenue', 'volume', 'margin', 'price']);
+
+function detectColumn(headers: string[], aliases: string[], blockShares = false): number {
+  const normHeaders = headers.map(normalize).map((h) => (blockShares && SHARE_RE.test(h) ? '' : h));
   // 1) exact match
   for (let i = 0; i < normHeaders.length; i++) {
-    if (aliases.some((a) => normHeaders[i] === normalize(a))) return i;
+    if (normHeaders[i] && aliases.some((a) => normHeaders[i] === normalize(a))) return i;
   }
-  // 2) substring match (longest alias first to prefer specificity)
+  // 2) substring match (longest alias first to prefer specificity); short
+  //    aliases (≤ 2 letters, e.g. « ca ») require word boundaries, otherwise
+  //    « Catégorie » would be captured as chiffre d'affaires.
   const sorted = [...aliases].sort((a, b) => b.length - a.length);
   for (let i = 0; i < normHeaders.length; i++) {
-    if (sorted.some((a) => normHeaders[i].includes(normalize(a)))) return i;
+    if (!normHeaders[i]) continue;
+    const hit = sorted.some((a) => {
+      const na = normalize(a);
+      if (na.length <= 2) return new RegExp(`(^|[^a-z0-9])${na}([^a-z0-9]|$)`).test(normHeaders[i]);
+      return normHeaders[i].includes(na);
+    });
+    if (hit) return i;
   }
   return -1;
+}
+
+function findHeaderRow(rows: unknown[][]): number {
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const textCells = (rows[i] || []).filter((c) => typeof c === 'string' && String(c).trim().length > 0).length;
+    if (textCells >= 2) return i;
+  }
+  return 0;
+}
+
+// Certains exports ont une page de garde (« Sommaire ») en première feuille :
+// on retient la feuille dont la ligne d'en-têtes fait matcher le plus de champs.
+function pickBestSheet(wb: XLSX.WorkBook): { sheetName: string; rows: unknown[][] } {
+  let best: { sheetName: string; rows: unknown[][]; score: number } | null = null;
+  for (const sheetName of wb.SheetNames.slice(0, 8)) {
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[sheetName], {
+      header: 1,
+      blankrows: false,
+    }) as unknown as unknown[][];
+    const headers = (rows[findHeaderRow(rows)] || []).map((c) => (c == null ? '' : String(c)));
+    const score = Object.keys(COLUMN_ALIASES).filter(
+      (field) => detectColumn(headers, COLUMN_ALIASES[field], NUMERIC_FIELDS.has(field)) >= 0
+    ).length;
+    if (!best || score > best.score) best = { sheetName, rows, score };
+  }
+  return best ?? { sheetName: wb.SheetNames[0], rows: [] };
 }
 
 function toNumber(v: unknown): number {
@@ -106,13 +148,8 @@ function toBool(v: unknown): boolean {
 /** Reads headers + a few sample rows (for reports and the AI mapping net). */
 export function readRawRows(buffer: ArrayBuffer): { headers: string[]; sample: unknown[][] } {
   const wb = XLSX.read(buffer, { type: 'array' });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { header: 1, blankrows: false }) as unknown as unknown[][];
-  let headerIdx = 0;
-  for (let i = 0; i < Math.min(rows.length, 10); i++) {
-    const textCells = (rows[i] || []).filter((c) => typeof c === 'string' && c.trim().length > 0).length;
-    if (textCells >= 2) { headerIdx = i; break; }
-  }
+  const { rows } = pickBestSheet(wb);
+  const headerIdx = findHeaderRow(rows);
   return {
     headers: (rows[headerIdx] || []).map((c) => (c == null ? '' : String(c))),
     sample: rows.slice(headerIdx + 1, headerIdx + 4),
@@ -135,30 +172,20 @@ export function parseWorkbook(
   if (!wb.SheetNames.length) {
     throw new Error(`« ${fileName} » ${D.noSheet}`);
   }
-  const sheetName = wb.SheetNames[0];
-  const sheet = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { header: 1, blankrows: false }) as unknown as unknown[][];
+  const { sheetName, rows } = pickBestSheet(wb);
 
   const warnings: string[] = [];
   if (!rows.length) {
     throw new Error(`« ${sheetName} » ${D.emptySheet}`);
   }
 
-  // Find the header row: first row that has >= 2 non-empty text cells.
-  let headerIdx = 0;
-  for (let i = 0; i < Math.min(rows.length, 10); i++) {
-    const textCells = rows[i].filter((c) => typeof c === 'string' && c.trim().length > 0).length;
-    if (textCells >= 2) {
-      headerIdx = i;
-      break;
-    }
-  }
+  const headerIdx = findHeaderRow(rows);
   const headers = rows[headerIdx].map((c) => (c == null ? '' : String(c)));
 
   const idx: Record<string, number> = {};
   const detectedColumns: Record<string, string | null> = {};
   for (const field of Object.keys(COLUMN_ALIASES)) {
-    const i = detectColumn(headers, COLUMN_ALIASES[field]);
+    const i = detectColumn(headers, COLUMN_ALIASES[field], NUMERIC_FIELDS.has(field));
     idx[field] = i;
     detectedColumns[field] = i >= 0 ? headers[i] : null;
   }
@@ -194,6 +221,7 @@ export function parseWorkbook(
 
   const products: Product[] = [];
   let dropped = 0;
+  let totals = 0;
   for (let r = headerIdx + 1; r < rows.length; r++) {
     const row = rows[r];
     if (!row || row.every((c) => c == null || String(c).trim() === '')) continue;
@@ -203,6 +231,12 @@ export function parseWorkbook(
     const name = idx.name >= 0 ? String(row[idx.name] ?? '').trim() : '';
     if (!brand && !name && !ean) {
       dropped++;
+      continue;
+    }
+    // Lignes d'agrégats (« Total catégorie », « Sous-total », « Ensemble »…) :
+    // fréquentes dans les exports panel, elles fausseraient tout le plan de masse.
+    if (TOTAL_RE.test(normalize(brand)) || TOTAL_RE.test(normalize(name))) {
+      totals++;
       continue;
     }
     const revenue = idx.revenue >= 0 ? toNumber(row[idx.revenue]) : 0;
@@ -229,6 +263,13 @@ export function parseWorkbook(
     });
   }
 
+  if (totals > 0) {
+    warnings.push(
+      locale === 'fr'
+        ? `${totals} ligne(s) de total/agrégat ignorée(s) (ex. « Total catégorie »).`
+        : `${totals} total/aggregate row(s) skipped (e.g. “Category total”).`
+    );
+  }
   if (dropped > 0) {
     warnings.push(
       locale === 'fr'
