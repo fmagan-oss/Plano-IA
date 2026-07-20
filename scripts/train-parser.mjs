@@ -31,23 +31,57 @@ const PROCESSED = join(DATA_DIR, 'processed.json');
 const ALIASES = JSON.parse(readFileSync(join(root, 'app/lib/column-aliases.json'), 'utf8'));
 
 /* — même normalisation/détection que app/lib/parse.ts (à garder en phase) — */
-const norm = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘]/g, "'").toLowerCase().trim();
-function detectCol(headers, aliases) {
-  const nh = headers.map(norm);
-  for (let i = 0; i < nh.length; i++) if (aliases.some((a) => nh[i] === norm(a))) return i;
+const norm = (s) =>
+  String(s)
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[’‘]/g, "'")
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .trim();
+// Colonnes de parts/distribution (PDM, share, % ACV, DN/DV…) : jamais des
+// ventes — exclues de la détection des champs numériques (CA, volume, prix, marge).
+const SHARE_RE = /share|part de marche|pdm|acv|distribution|poids|weighted|(^|[^a-z0-9])(dn|dv)([^a-z0-9]|$)/;
+const NUMERIC_FIELDS = new Set(['revenue', 'volume', 'margin', 'price']);
+function detectCol(headers, aliases, blockShares = false) {
+  const nh = headers.map(norm).map((h) => (blockShares && SHARE_RE.test(h) ? '' : h));
+  for (let i = 0; i < nh.length; i++) if (nh[i] && aliases.some((a) => nh[i] === norm(a))) return i;
   const sorted = [...aliases].sort((a, b) => b.length - a.length);
-  for (let i = 0; i < nh.length; i++) if (nh[i] && sorted.some((a) => nh[i].includes(norm(a)))) return i;
+  for (let i = 0; i < nh.length; i++) {
+    if (!nh[i]) continue;
+    const hit = sorted.some((a) => {
+      const na = norm(a);
+      // Alias courts (≤ 2 lettres, ex. « ca ») : frontière de mot, sinon
+      // « Catégorie » serait capturée par « ca ».
+      if (na.length <= 2) return new RegExp(`(^|[^a-z0-9])${na}([^a-z0-9]|$)`).test(nh[i]);
+      return nh[i].includes(na);
+    });
+    if (hit) return i;
+  }
   return -1;
 }
 
+function headerRowOf(rows) {
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    if ((rows[i] || []).filter((c) => typeof c === 'string' && c.trim()).length >= 2) return i;
+  }
+  return 0;
+}
+
+// Certains exports ont une page de garde (« Sommaire ») : on choisit la
+// feuille dont la ligne d'en-têtes fait matcher le plus de champs.
 function headersOf(path) {
   const wb = XLSX.readFile(path);
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, blankrows: false });
-  let hi = 0;
-  for (let i = 0; i < Math.min(rows.length, 10); i++) {
-    if ((rows[i] || []).filter((c) => typeof c === 'string' && c.trim()).length >= 2) { hi = i; break; }
+  let best = null;
+  for (const sn of wb.SheetNames.slice(0, 8)) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, blankrows: false });
+    const headers = (rows[headerRowOf(rows)] || []).map((c) => (c == null ? '' : String(c)));
+    const score = Object.keys(ALIASES).filter(
+      (field) => detectCol(headers, ALIASES[field], NUMERIC_FIELDS.has(field)) >= 0
+    ).length;
+    if (!best || score > best.score) best = { headers, score };
   }
-  return (rows[hi] || []).map((c) => (c == null ? '' : String(c)));
+  return best ? best.headers : [];
 }
 
 if (!existsSync(INBOX)) mkdirSync(INBOX, { recursive: true });
@@ -74,20 +108,32 @@ for (const { dir, f, tag } of files) {
   const mapping = {};
   const matchedIdx = new Set();
   for (const field of Object.keys(ALIASES)) {
-    const i = detectCol(headers, ALIASES[field]);
+    const i = detectCol(headers, ALIASES[field], NUMERIC_FIELDS.has(field));
     mapping[field] = i >= 0 ? headers[i] : null;
     if (i >= 0) matchedIdx.add(i);
   }
   const missing = Object.keys(mapping).filter((k) => mapping[k] === null);
   const orphans = headers.filter((h, i) => h && !matchedIdx.has(i));
+  // Attendus de mapping (training-data/expect/<tag>/<fichier>.expect.json) :
+  // vérifie que chaque champ est mappé sur la BONNE colonne, pas seulement mappé.
+  const expPath = join(DATA_DIR, 'expect', tag, `${f}.expect.json`);
+  const wrongMap = [];
+  if (existsSync(expPath)) {
+    const exp = JSON.parse(readFileSync(expPath, 'utf8'));
+    for (const [field, want] of Object.entries(exp)) {
+      const got = mapping[field] ?? null;
+      if (got !== want) wrongMap.push({ field, want, got });
+    }
+  }
   // Même règle que l'app : bloquant si pas de marque, ni EAN ni libellé,
-  // ou ni CA ni volume. Le reste n'est qu'un avertissement.
+  // ou ni CA ni volume. Un mapping contraire aux attendus est aussi bloquant.
   const critical =
     missing.includes('brand') ||
     (missing.includes('ean') && missing.includes('name')) ||
-    (missing.includes('revenue') && missing.includes('volume'));
+    (missing.includes('revenue') && missing.includes('volume')) ||
+    wrongMap.length > 0;
   if (critical) report.gaps++;
-  report.files.push({ file: `${tag}/${f}`, mapping, missing, orphans });
+  report.files.push({ file: `${tag}/${f}`, mapping, missing, orphans, wrongMap });
   processed[`${tag}/${f}`] = { headers, at: new Date().toISOString().slice(0, 10) };
 }
 
@@ -102,6 +148,9 @@ if (process.argv.includes('--json')) {
     if (r.error) { console.log(`  ERREUR : ${r.error}`); continue; }
     console.log(`  champs manquants : ${r.missing.length ? r.missing.join(', ') : 'aucun ✓'}`);
     if (r.orphans.length) console.log(`  en-têtes non reconnus : ${r.orphans.map((o) => `« ${o} »`).join(', ')}`);
+    for (const w of r.wrongMap || []) {
+      console.log(`  MAPPING INCORRECT : ${w.field} — attendu ${w.want === null ? '(aucun)' : `« ${w.want} »`}, obtenu ${w.got === null ? '(aucun)' : `« ${w.got} »`}`);
+    }
   }
   console.log(`\n${report.gaps} fichier(s) avec des champs critiques manquants.`);
 }
