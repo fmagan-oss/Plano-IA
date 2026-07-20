@@ -1,0 +1,1092 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "objet": "Dictionnaire d'intitules de colonnes pour un robot qui construit des PLANOGRAMMES a partir de fichiers sell-out / sell-in panel et de releves lineaires.",
+    "principe_central": "Un intitulé ne se résout PAS à un tiroir, mais à une SIGNATURE d'identité. 'CA' et 'VMH' tombent tous les deux dans le tiroir 'ventes valeur' et c'est une erreur grave : le premier est un total sommable, le second une moyenne par magasin qu'on ne somme jamais. Deux colonnes peuvent porter le même nom métier et ne pas être le même objet.",
+    "regle_dor": "Tant que les 5 axes de la signature ne sont pas connus, la colonne est inutilisable. Dans le doute : ne pas deviner, marquer 'non résolu' et demander.",
+    "enjeu_planogramme": "Chaque erreur de lecture devient une decision physique : des facings donnes ou retires. Les consequences sont asymetriques — un produit sur-lineairise immobilise de l'espace, un produit sous-lineairise genere de la rupture et des ventes perdues."
+  },
+  "signature_schema": {
+    "mesure": [
+      "valeur",
+      "volume",
+      "distribution",
+      "rotation",
+      "prix",
+      "part",
+      "marge",
+      "promo",
+      "denombrement"
+    ],
+    "agregation": [
+      "total",
+      "moyenne_par_magasin",
+      "indice",
+      "part",
+      "pondere",
+      "variation"
+    ],
+    "reference_temps": [
+      "periode_courante",
+      "annee_precedente",
+      "variation",
+      "cumul",
+      "rolling"
+    ],
+    "niveau": [
+      "sku",
+      "marque",
+      "fabricant",
+      "segment",
+      "categorie",
+      "total"
+    ],
+    "unite": [
+      "EUR",
+      "GBP",
+      "SEK",
+      "DKK",
+      "NOK",
+      "kEUR",
+      "unites",
+      "colis",
+      "pct",
+      "points",
+      "na"
+    ],
+    "sommable": [
+      true,
+      false
+    ]
+  },
+  "regles_de_desambiguisation": [
+    {
+      "id": "R1_preferer_courant",
+      "regle": "Si deux colonnes ne diffèrent que par un marqueur d'année précédente (YA, LY, N-1, A-1, YAG, PY), la période courante est retenue par défaut et l'autre est étiquetée annee_precedente. Ne JAMAIS prendre la première trouvée.",
+      "couvre": "raison n°20 du fichier de refus"
+    },
+    {
+      "id": "R2_marque_vs_fabricant",
+      "regle": "Marque et Fabricant sont deux niveaux différents, jamais interchangeables. Défaut = marque. Si les deux existent, les conserver comme deux champs distincts. Ne jamais 'prendre la première trouvée'.",
+      "couvre": "raison n°21"
+    },
+    {
+      "id": "R3_jamais_sommer_une_moyenne",
+      "regle": "Toute colonne de signature agregation != total est non sommable : VMH, RoS, prix moyen, indice, part, DN, DV. Une somme sur ces colonnes est un bug, pas un résultat.",
+      "couvre": "raison n°22"
+    },
+    {
+      "id": "R4_frontiere_de_mot",
+      "regle": "Un alias de 2 caractères ou moins n'est reconnu qu'entouré de frontières de mot. 'CA' ne se déclenche pas dans 'Catégorie', 'DN' pas dans 'DNA'.",
+      "couvre": "raison n°23"
+    },
+    {
+      "id": "R5_une_seule_periode",
+      "regle": "Aucune agrégation sans période résolue. En format long, filtrer une période avant tout calcul. En format croisé, ne jamais additionner deux colonnes de périodes différentes. Ne jamais mélanger une ligne hebdo et une ligne cumul (YTD/CAM/MAT).",
+      "couvre": "raisons n°16 et 25"
+    },
+    {
+      "id": "R6_une_seule_devise_une_seule_unite",
+      "regle": "Vérifier l'unité déclarée dans l'intitulé (k€, €, GBP, colis, UVC). Normaliser avant toute somme. Un prix calculé avec le mauvais dénominateur de volume est faux d'un facteur colisage.",
+      "couvre": "nouveau"
+    },
+    {
+      "id": "R7_exclure_les_agregats",
+      "regle": "Une ligne dont la valeur est ≈ la somme de ses sœurs EST un agrégat. Détecter par le calcul, pas seulement par le libellé — un sous-total peut s'appeler 'MDD' ou 'Ensemble' sans contenir le mot TOTAL.",
+      "couvre": "raison n°14, renforcée"
+    },
+    {
+      "id": "R8_non_resolu_bloque",
+      "regle": "Une colonne non résolue est signalée nommément avec ses 3 premières valeurs, jamais silencieusement ignorée si elle porte un nom de mesure.",
+      "couvre": "raison n°17"
+    },
+    {
+      "id": "R9_pdl_sur_lineaire",
+      "regle": "La part de lineaire se calcule TOUJOURS sur le lineaire developpe (facings x largeur), jamais sur le nombre de facings. Les deux metriques peuvent donner des conclusions de signe oppose.",
+      "couvre": "exercice EX09"
+    },
+    {
+      "id": "R10_circularite",
+      "regle": "Le CA observe reflete deja le lineaire actuel. Allouer proportionnellement au CA brut verrouille et amplifie l'implantation existante. Le signal non biaise est la PRODUCTIVITE (CA par facing, rotation par facing).",
+      "couvre": "exercice EX10"
+    },
+    {
+      "id": "R11_plancher_rotation",
+      "regle": "La rotation, pas le CA, fixe le nombre minimum de facings. facings_mini = arrondi_sup( (rotation_jour x jours_reappro x coef_pointe) / capacite_par_facing ). C'est une contrainte physique, pas un critere d'optimisation : on ne descend jamais en dessous.",
+      "couvre": "exercice EX11"
+    },
+    {
+      "id": "R12_periode_promo_exclue",
+      "regle": "Une periode contenant une promotion ne sert pas de base d'allocation : un pic promotionnel n'est pas une demande structurelle. Allouer du lineaire permanent sur un pic temporaire est une erreur.",
+      "couvre": "regle brut vs net appliquee au planogramme"
+    }
+  ],
+  "champs": {
+    "ean": {
+      "signature": {
+        "mesure": null,
+        "niveau": "sku",
+        "sommable": false
+      },
+      "aliases": [
+        "EAN",
+        "EAN13",
+        "EAN 13",
+        "Gencod",
+        "Gencode",
+        "Code EAN",
+        "Code barre",
+        "Code-barres",
+        "GTIN",
+        "UPC",
+        "UPC Code",
+        "Barcode",
+        "Item Code",
+        "Code article",
+        "Réf",
+        "Ref",
+        "Référence",
+        "Reference",
+        "Code produit",
+        "Product Code",
+        "SKU",
+        "SKU Code",
+        "Artikelnummer",
+        "Artikelcode",
+        "Streepjescode"
+      ],
+      "anti_alias": [
+        "Code enseigne",
+        "Code magasin",
+        "Code fournisseur",
+        "Code postal"
+      ],
+      "note": "13 chiffres attendus pour un EAN13, 12 pour un UPC. Un UPC nord-américain converti en EAN13 prend un 0 en tête : le même produit peut donc apparaître sous deux codes."
+    },
+    "libelle": {
+      "signature": {
+        "mesure": null,
+        "niveau": "sku",
+        "sommable": false
+      },
+      "aliases": [
+        "Libellé",
+        "Libelle",
+        "Libellé produit",
+        "Désignation",
+        "Designation",
+        "Descriptif",
+        "Description",
+        "Product",
+        "Product Name",
+        "Item",
+        "Item Description",
+        "Nom produit",
+        "Article",
+        "Omschrijving",
+        "Productnaam"
+      ],
+      "anti_alias": [
+        "Libellé enseigne",
+        "Description segment"
+      ]
+    },
+    "marque": {
+      "signature": {
+        "niveau": "marque",
+        "sommable": false
+      },
+      "aliases": [
+        "Marque",
+        "Brand",
+        "Brand Name",
+        "Marque commerciale",
+        "Merk",
+        "Varumärke"
+      ],
+      "anti_alias": [
+        "Marque distributeur",
+        "Fabricant",
+        "Manufacturer",
+        "Brand Owner"
+      ],
+      "note": "Distinct du fabricant. Voir règle R2."
+    },
+    "fabricant": {
+      "signature": {
+        "niveau": "fabricant",
+        "sommable": false
+      },
+      "aliases": [
+        "Fabricant",
+        "Manufacturer",
+        "Brand Owner",
+        "Société",
+        "Societe",
+        "Company",
+        "Groupe",
+        "Group",
+        "Supplier",
+        "Fournisseur",
+        "Producent",
+        "Leverancier"
+      ],
+      "note": "Schwarzkopf est une marque, Henkel un fabricant. Les confondre fausse toute part de marché."
+    },
+    "mdd": {
+      "signature": {
+        "niveau": "marque",
+        "sommable": false
+      },
+      "aliases": [
+        "MDD",
+        "Marque distributeur",
+        "Marque de distributeur",
+        "Private Label",
+        "PL",
+        "Own Label",
+        "Own Brand",
+        "Distributor Brand",
+        "Huismerk",
+        "Store Brand"
+      ],
+      "note": "Souvent déjà un agrégat de plusieurs sous-marques : vérifier l'additivité (R7)."
+    },
+    "segment": {
+      "signature": {
+        "niveau": "segment",
+        "sommable": false
+      },
+      "aliases": [
+        "Segment",
+        "Sous-segment",
+        "Catégorie",
+        "Categorie",
+        "Category",
+        "Groupe produit",
+        "Groep",
+        "Famille",
+        "Family",
+        "Rayon",
+        "Univers",
+        "Sous-famille",
+        "Type",
+        "Productgroep",
+        "Warengruppe"
+      ],
+      "note": "Attention R4 : 'Catégorie' contient 'CA'."
+    },
+    "ventes_valeur": {
+      "signature": {
+        "mesure": "valeur",
+        "agregation": "total",
+        "reference_temps": "periode_courante",
+        "unite": "EUR",
+        "sommable": true
+      },
+      "aliases": [
+        "CA",
+        "CA HT",
+        "CA TTC",
+        "C.A.",
+        "Chiffre d'affaires",
+        "Chiffre d affaires",
+        "Ventes valeur",
+        "Ventes Valeur",
+        "Ventes €",
+        "Ventes euros",
+        "Valeur",
+        "Sales Value",
+        "Value Sales",
+        "Value",
+        "Sales",
+        "Turnover",
+        "Revenue",
+        "Montant",
+        "Montant ventes",
+        "Sell-out valeur",
+        "Sell out valeur",
+        "Sortie caisse valeur",
+        "Waarde",
+        "Omzet",
+        "Verkoopwaarde",
+        "Försäljning",
+        "Omsättning",
+        "Umsatz"
+      ],
+      "anti_alias": [
+        "Valeur nutritionnelle",
+        "CA moyen",
+        "CA / magasin",
+        "CA par magasin",
+        "Valeur promo",
+        "Part valeur",
+        "Value Share",
+        "CA N-1",
+        "Sales Value YA",
+        "Evol CA",
+        "Var CA",
+        "CA indice"
+      ],
+      "note": "Le tiroir le plus piégeux. Toute variante moyenne / part / année précédente / variation sort de ce champ et va dans le sien."
+    },
+    "ventes_valeur_ap": {
+      "signature": {
+        "mesure": "valeur",
+        "agregation": "total",
+        "reference_temps": "annee_precedente",
+        "sommable": true
+      },
+      "aliases": [
+        "CA N-1",
+        "CA A-1",
+        "CA AP",
+        "Chiffre d'affaires N-1",
+        "Ventes valeur N-1",
+        "Sales Value YA",
+        "Value YA",
+        "Sales Value LY",
+        "Value LY",
+        "Sales Value PY",
+        "Sales Value YAG",
+        "CA an dernier",
+        "Waarde VJ",
+        "Value Year Ago"
+      ],
+      "note": "Marqueurs à reconnaître : YA, YAG, LY, PY, N-1, A-1, VJ, 'Year Ago', 'Last Year'."
+    },
+    "ventes_volume": {
+      "signature": {
+        "mesure": "volume",
+        "agregation": "total",
+        "reference_temps": "periode_courante",
+        "unite": "unites",
+        "sommable": true
+      },
+      "aliases": [
+        "Volume",
+        "Volumes",
+        "Ventes volume",
+        "Ventes unité",
+        "Ventes unites",
+        "Unités",
+        "Unites",
+        "UVC",
+        "Qté",
+        "Qte",
+        "Quantité",
+        "Quantite",
+        "Pièces",
+        "Pieces",
+        "Units",
+        "Sales Units",
+        "Unit Sales",
+        "Volume Sales",
+        "Sell-out volume",
+        "Stuks",
+        "Aantal",
+        "Eenheden",
+        "Antal",
+        "Menge"
+      ],
+      "anti_alias": [
+        "Volume promo",
+        "Units YA",
+        "Sales Units YA",
+        "Nb références",
+        "Nombre de références",
+        "Nb magasins",
+        "Volume litres",
+        "Part volume",
+        "Volume Share"
+      ],
+      "note": "UVC = unité de vente consommateur. Ne pas confondre avec colis / cartons (facteur de colisage). Chez NielsenIQ, 'units' peut compter les articles à l'intérieur d'un lot : le prix moyen devient alors un effet de MIX."
+    },
+    "ventes_volume_ap": {
+      "signature": {
+        "mesure": "volume",
+        "reference_temps": "annee_precedente",
+        "sommable": true
+      },
+      "aliases": [
+        "Volume N-1",
+        "Volume A-1",
+        "Sales Units YA",
+        "Units YA",
+        "Units LY",
+        "Qté N-1"
+      ]
+    },
+    "colis": {
+      "signature": {
+        "mesure": "volume",
+        "unite": "colis",
+        "sommable": true
+      },
+      "aliases": [
+        "Colis",
+        "Cartons",
+        "Cases",
+        "Cartons vendus",
+        "Nb colis",
+        "Outer",
+        "Shipper",
+        "Dozen"
+      ],
+      "note": "À convertir en UVC via le colisage avant toute somme ou tout calcul de prix."
+    },
+    "prix": {
+      "signature": {
+        "mesure": "prix",
+        "agregation": "moyenne_par_magasin",
+        "sommable": false
+      },
+      "aliases": [
+        "Prix",
+        "Prix moyen",
+        "Prix de vente",
+        "Prix unitaire",
+        "PVC",
+        "PVM",
+        "PV moyen",
+        "Prix moyen UVC",
+        "Price",
+        "Avg Price",
+        "Average Price",
+        "Price per Unit",
+        "Unit Price",
+        "Selling Price",
+        "Prijs",
+        "Gemiddelde prijs",
+        "Pris"
+      ],
+      "anti_alias": [
+        "Prix promo",
+        "Prix N-1",
+        "Indice prix",
+        "Price Index"
+      ],
+      "note": "JAMAIS sommable. Toujours recalculé = valeur ÷ volume, et seulement si les deux couvrent la même période et le même périmètre."
+    },
+    "distribution_numerique": {
+      "signature": {
+        "mesure": "distribution",
+        "agregation": "pondere",
+        "unite": "pct",
+        "sommable": false
+      },
+      "aliases": [
+        "DN",
+        "D.N.",
+        "Distribution numérique",
+        "Distribution numerique",
+        "ND",
+        "Numeric Distribution",
+        "Numerical Distribution",
+        "% DN",
+        "DN %",
+        "Numerieke distributie",
+        "Distributie"
+      ],
+      "note": "Jamais une mesure de vente. Jamais sommable entre marques. N'existe que sur les lignes magasins physiques."
+    },
+    "distribution_valeur": {
+      "signature": {
+        "mesure": "distribution",
+        "agregation": "pondere",
+        "unite": "pct",
+        "sommable": false
+      },
+      "aliases": [
+        "DV",
+        "D.V.",
+        "Distribution valeur",
+        "Weighted Distribution",
+        "WD",
+        "% ACV",
+        "ACV",
+        "ACV Distribution",
+        "TDP",
+        "Total Distribution Points",
+        "Gewogen distributie"
+      ],
+      "note": "TDP = DN × nb de références : encore un autre objet. Ne pas confondre les trois."
+    },
+    "rotation": {
+      "signature": {
+        "mesure": "rotation",
+        "agregation": "moyenne_par_magasin",
+        "sommable": false
+      },
+      "aliases": [
+        "VMH",
+        "V.M.H.",
+        "Ventes moyennes hebdomadaires",
+        "Vente moyenne hebdo",
+        "VMM",
+        "Vente moyenne magasin",
+        "CA moyen par magasin",
+        "CA / magasin",
+        "CA par magasin",
+        "RoS",
+        "ROS",
+        "Rate of Sale",
+        "ROS Value",
+        "ROS Units",
+        "Rotation",
+        "Sales per Point of Distribution",
+        "SPPD",
+        "Rotatie",
+        "Omzet per winkel"
+      ],
+      "anti_alias": [],
+      "note": "PIÈGE MAJEUR : contient souvent le mot 'CA' ou 'ventes' et se fait capter comme chiffre d'affaires. C'est une MOYENNE PAR MAGASIN (et par semaine pour la VMH). La sommer n'a aucun sens. Pour remonter à un total : VMH × nb magasins × nb semaines — et seulement si ces deux colonnes existent."
+    },
+    "part_de_marche": {
+      "signature": {
+        "mesure": "part",
+        "agregation": "part",
+        "unite": "pct",
+        "sommable": false
+      },
+      "aliases": [
+        "PDM",
+        "P.D.M.",
+        "Part de marché",
+        "Part de marche",
+        "Part valeur",
+        "Part volume",
+        "Market Share",
+        "Value Share",
+        "Volume Share",
+        "Share",
+        "Share %",
+        "% Share",
+        "MS",
+        "Marktaandeel",
+        "Marknadsandel"
+      ],
+      "note": "Jamais une mesure de vente. La somme des parts vaut 100 % par construction : la sommer comme un CA produit un nombre absurde mais crédible."
+    },
+    "promo": {
+      "signature": {
+        "mesure": "promo",
+        "agregation": "total",
+        "sommable": true
+      },
+      "aliases": [
+        "Promo",
+        "Ventes promo",
+        "CA promo",
+        "Sous promo",
+        "Sales Value Any Promo",
+        "Any Promo",
+        "Promotion",
+        "Promo Sales",
+        "Volume promo",
+        "% promo",
+        "Part promo",
+        "Feature",
+        "Display",
+        "Feature & Display",
+        "TPR",
+        "Temporary Price Reduction",
+        "Promotie",
+        "Aanbieding"
+      ],
+      "note": "Sous-ensemble des ventes, pas un ajout. Sert de variable de contrôle dans toute mesure d'impact : comparer la pression promo entre les deux années AVANT d'attribuer un effet."
+    },
+    "marge": {
+      "signature": {
+        "mesure": "marge",
+        "agregation": "total",
+        "sommable": true
+      },
+      "aliases": [
+        "Marge",
+        "Marge brute",
+        "Marge €",
+        "Marge nette",
+        "Taux de marge",
+        "Marge %",
+        "Margin",
+        "Gross Margin",
+        "GM",
+        "Gross Profit",
+        "Profit",
+        "Margin %",
+        "Marge avant",
+        "Marge arrière",
+        "Marge totale",
+        "Winstmarge",
+        "Brutomarge"
+      ],
+      "note": "En % ou en € : à normaliser. Un taux de marge n'est pas sommable."
+    },
+    "nouveaute": {
+      "signature": {
+        "mesure": null,
+        "sommable": false
+      },
+      "aliases": [
+        "Nouveauté",
+        "Nouveaute",
+        "Nouveau",
+        "Innovation",
+        "Lancement",
+        "NPD",
+        "New",
+        "New Product",
+        "New Item",
+        "Launch",
+        "Innovatie",
+        "Nieuw"
+      ],
+      "note": "Souvent un booléen ou une date de première apparition."
+    },
+    "periode": {
+      "signature": {
+        "mesure": null,
+        "sommable": false
+      },
+      "aliases": [
+        "Période",
+        "Periode",
+        "Period",
+        "Semaine",
+        "Week",
+        "Wk",
+        "S",
+        "W",
+        "Mois",
+        "Month",
+        "Date",
+        "Time",
+        "Timeframe",
+        "Periode analyse",
+        "Fin de période"
+      ],
+      "note": "En format long, cette colonne est la clé de filtrage obligatoire (R5)."
+    },
+    "enseigne_geo": {
+      "signature": {
+        "mesure": null,
+        "sommable": false
+      },
+      "aliases": [
+        "Enseigne",
+        "Circuit",
+        "Canal",
+        "Channel",
+        "Banner",
+        "Retailer",
+        "Client",
+        "Customer",
+        "Marché",
+        "Market",
+        "Géographie",
+        "Geographie",
+        "Geography",
+        "Région",
+        "Region",
+        "Zone",
+        "Univers",
+        "Kanaal",
+        "Klant",
+        "Winkelketen"
+      ],
+      "note": "Définit le périmètre. Deux lignes du même produit sur deux enseignes ne se somment que si l'on veut bien le total enseignes — et jamais avec une ligne 'TOTAL'."
+    },
+    "nb_magasins": {
+      "signature": {
+        "mesure": "denombrement",
+        "sommable": true
+      },
+      "aliases": [
+        "Nb magasins",
+        "Nombre de magasins",
+        "Nb points de vente",
+        "Nb PDV",
+        "Store Count",
+        "Stores",
+        "Nb sites",
+        "Aantal winkels"
+      ],
+      "note": "Nécessaire pour reconstruire un total à partir d'une VMH."
+    },
+    "nb_references": {
+      "signature": {
+        "mesure": "denombrement",
+        "sommable": true
+      },
+      "aliases": [
+        "Nb références",
+        "Nombre de références",
+        "Nb refs",
+        "Assortiment",
+        "Item Count",
+        "Number of Items",
+        "SKU Count",
+        "Aantal artikelen"
+      ],
+      "anti_alias": [],
+      "note": "N'est PAS un volume de ventes. Piège classique."
+    },
+    "variation": {
+      "signature": {
+        "mesure": null,
+        "agregation": "variation",
+        "unite": "pct",
+        "sommable": false
+      },
+      "aliases": [
+        "Evol",
+        "Évol",
+        "Evolution",
+        "Var",
+        "Variation",
+        "Var %",
+        "Evol %",
+        "vs N-1",
+        "vs A-1",
+        "vs LY",
+        "Growth",
+        "Growth %",
+        "Change",
+        "% Change",
+        "Delta",
+        "Δ",
+        "Groei",
+        "Ontwikkeling"
+      ],
+      "note": "Un pourcentage de variation n'est ni une valeur ni un volume. Toujours recalculer la variation soi-même plutôt que de reprendre la colonne fournisseur : ses bornes de période peuvent différer des vôtres."
+    },
+    "indice": {
+      "signature": {
+        "mesure": null,
+        "agregation": "indice",
+        "sommable": false
+      },
+      "aliases": [
+        "Indice",
+        "Index",
+        "Idx",
+        "Base 100",
+        "Indice base 100",
+        "Price Index",
+        "Indexcijfer"
+      ],
+      "note": "Un indice 120 n'est pas 120 €. Non sommable."
+    },
+    "facings": {
+      "signature": {
+        "mesure": "denombrement",
+        "agregation": "total",
+        "unite": "na",
+        "sommable": true
+      },
+      "aliases": [
+        "Facing",
+        "Facings",
+        "Nb facings",
+        "Nombre de facings",
+        "Frontales",
+        "Nb frontales",
+        "Faces",
+        "Nb faces",
+        "Facings actuels",
+        "Implantation facings",
+        "Voorkanten",
+        "Facings current"
+      ],
+      "note": "Le nombre de facings n'est PAS la part de lineaire : deux produits de largeurs differentes occupent des espaces differents a facings egaux. Voir champ 'lineaire_developpe'."
+    },
+    "lineaire_developpe": {
+      "signature": {
+        "mesure": "denombrement",
+        "agregation": "total",
+        "unite": "cm",
+        "sommable": true
+      },
+      "aliases": [
+        "Lineaire",
+        "Lineaire developpe",
+        "LD",
+        "ML",
+        "Metre lineaire",
+        "Metres lineaires",
+        "Lineaire (cm)",
+        "Lineaire (m)",
+        "Shelf space",
+        "Linear",
+        "Linear space",
+        "Running metres",
+        "Schapruimte",
+        "Strekkende meter"
+      ],
+      "note": "LD = largeur du facing x nombre de facings x nombre de niveaux occupes. C'est la SEULE base correcte pour calculer une part de lineaire."
+    },
+    "part_de_lineaire": {
+      "signature": {
+        "mesure": "part",
+        "agregation": "part",
+        "unite": "pct",
+        "sommable": false
+      },
+      "aliases": [
+        "PDL",
+        "P.D.L.",
+        "Part de lineaire",
+        "Part lineaire",
+        "Share of Shelf",
+        "SoS",
+        "Shelf Share",
+        "Space Share",
+        "% lineaire",
+        "Schapaandeel"
+      ],
+      "note": "A comparer a la PDM. L'ecart PDM - PDL est le diagnostic central du planogramme. Toujours calculee sur le lineaire developpe, jamais sur le nombre de facings."
+    },
+    "dimensions": {
+      "signature": {
+        "mesure": "denombrement",
+        "sommable": false
+      },
+      "aliases": [
+        "Largeur",
+        "Hauteur",
+        "Profondeur",
+        "Largeur facing",
+        "Dimensions",
+        "Width",
+        "Height",
+        "Depth",
+        "Breedte",
+        "Hoogte",
+        "Diepte",
+        "Format",
+        "Encombrement"
+      ],
+      "note": "Indispensable pour convertir des facings en lineaire developpe et pour verifier la faisabilite physique."
+    },
+    "capacite": {
+      "signature": {
+        "mesure": "denombrement",
+        "agregation": "total",
+        "unite": "unites",
+        "sommable": true
+      },
+      "aliases": [
+        "Capacite",
+        "Capacite facing",
+        "Capacite par facing",
+        "Stock rayon",
+        "Contenance",
+        "Capacity",
+        "Units per facing",
+        "Shelf capacity",
+        "Case capacity",
+        "Capaciteit"
+      ],
+      "note": "Nombre d'UVC tenant derriere un facing. Entre dans le calcul du plancher anti-rupture."
+    },
+    "colisage": {
+      "signature": {
+        "mesure": "denombrement",
+        "sommable": false
+      },
+      "aliases": [
+        "Colisage",
+        "PCB",
+        "Par combien",
+        "Nb UVC par colis",
+        "Units per case",
+        "Case pack",
+        "Pack size",
+        "Inner",
+        "Verpakkingseenheid"
+      ],
+      "note": "Convertit colis <-> UVC. Une erreur de colisage fausse le prix ET le plancher de facings."
+    },
+    "reappro": {
+      "signature": {
+        "mesure": "denombrement",
+        "sommable": false
+      },
+      "aliases": [
+        "Reappro",
+        "Reapprovisionnement",
+        "Frequence reappro",
+        "Jours entre reappro",
+        "Replenishment",
+        "Replenishment frequency",
+        "Delivery frequency",
+        "Levering"
+      ],
+      "note": "Nombre de jours entre deux remises en rayon. Parametre du plancher anti-rupture."
+    },
+    "rupture": {
+      "signature": {
+        "mesure": "part",
+        "agregation": "part",
+        "unite": "pct",
+        "sommable": false
+      },
+      "aliases": [
+        "Rupture",
+        "Taux de rupture",
+        "% rupture",
+        "DN rupture",
+        "Out of Stock",
+        "OOS",
+        "% OOS",
+        "Stock-out",
+        "Nietbeschikbaarheid"
+      ],
+      "note": "Si la colonne existe, elle valide ou invalide le plancher calcule. Sinon, le plancher est theorique."
+    },
+    "emplacement": {
+      "signature": {
+        "mesure": null,
+        "sommable": false
+      },
+      "aliases": [
+        "Niveau",
+        "Etagere",
+        "Tablette",
+        "Module",
+        "Travee",
+        "Gondole",
+        "Position",
+        "Emplacement",
+        "Shelf",
+        "Shelf level",
+        "Bay",
+        "Module number",
+        "Zone",
+        "Schap",
+        "Niveau rayon"
+      ],
+      "note": "Le niveau conditionne la performance (zone a hauteur des yeux vs zone basse). Une comparaison de productivite entre produits ignore cet effet : a signaler."
+    }
+  },
+  "vocabulaire_periodes": {
+    "note": "Ces libellés apparaissent comme VALEURS de colonne (format long) ou comme EN-TÊTES (format croisé). Les reconnaître est indispensable pour appliquer R5.",
+    "hebdo": [
+      "S12",
+      "W12",
+      "wk 12 26",
+      "Week 12",
+      "Semaine 12",
+      "SEM 12"
+    ],
+    "periode_4_semaines": [
+      "P1",
+      "P6",
+      "P13",
+      "Période 6",
+      "Per 6"
+    ],
+    "cumul_annuel": [
+      "YTD",
+      "Year to Date",
+      "Cumul",
+      "Cumul annuel",
+      "CAM",
+      "Cumul annuel mobile",
+      "YTD 26",
+      "YTD 2026",
+      "CTD"
+    ],
+    "rolling_12_mois": [
+      "MAT",
+      "MAT TY",
+      "MAT LY",
+      "Moving Annual Total",
+      "12 mois roulants",
+      "Rolling 12",
+      "R12",
+      "MAT wk 24 26"
+    ],
+    "annee_precedente": [
+      "YA",
+      "YAG",
+      "LY",
+      "PY",
+      "N-1",
+      "A-1",
+      "VJ",
+      "Year Ago",
+      "Last Year"
+    ],
+    "piege": "Ne JAMAIS additionner une ligne hebdo avec une ligne YTD/CAM/MAT : le cumul contient déjà l'hebdo. C'est un double comptage temporel."
+  },
+  "unites_et_devises": {
+    "monetaires": [
+      "€",
+      "EUR",
+      "k€",
+      "kEUR",
+      "K€",
+      "M€",
+      "MEUR",
+      "£",
+      "GBP",
+      "kr",
+      "SEK",
+      "DKK",
+      "NOK",
+      "$",
+      "USD"
+    ],
+    "volumes": [
+      "UVC",
+      "unités",
+      "units",
+      "pièces",
+      "stuks",
+      "colis",
+      "cartons",
+      "cases",
+      "L",
+      "kg"
+    ],
+    "piege": "Un intitulé 'CA (k€)' à côté d'un 'CA (€)' se somme sans erreur visible et donne un résultat faux d'un facteur 1000. Toujours lire l'unité déclarée dans la parenthèse de l'intitulé."
+  },
+  "arbitrage_allocation": {
+    "note": "Ordre d'application. Les etapes 1 et 2 sont des contraintes, pas des criteres : elles s'appliquent avant tout arbitrage.",
+    "etape_1_contrainte_presence": "1 facing minimum pour toute reference conservee. Si le plancher anti-rupture est inatteignable dans l'espace disponible, la bonne decision est le dereferencement, pas le sous-facing.",
+    "etape_2_contrainte_rupture": "Appliquer facings_mini issu de la rotation (R11) avant toute ponderation.",
+    "etape_3_signal": "Repartir l'espace restant selon le critere retenu : CA, rotation, marge, ou une combinaison. Utiliser la productivite (par facing) et non la valeur brute (R10).",
+    "etape_4_rendements": "La reponse des ventes au lineaire est concave : doubler les facings ne double pas les ventes. L'allocation n'est donc pas proportionnelle et sature. Le coefficient est un PARAMETRE a calibrer par categorie et par enseigne — jamais une constante universelle, jamais repris d'une autre categorie.",
+    "etape_5_merchandising": "Appliquer les contraintes de lisibilite : blocs marque, blocs segment, echelle de prix, niveaux (zone a hauteur des yeux), continuite verticale ou horizontale.",
+    "etape_6_cas_particuliers": "Nouveautes : aucune historique de ventes, donc allocation prospective explicite et non fondee sur l'historique. Saisonnalite : preciser la periode de reference."
+  },
+  "refus_specifiques_planogramme": [
+    {
+      "cas": "Pas de rotation ni de volume",
+      "consequence": "Le plancher anti-rupture est incalculable.",
+      "comportement_attendu": "Produire le plan en signalant explicitement qu'il est pondere valeur uniquement et qu'il peut generer des ruptures sur les references a forte rotation et faible prix."
+    },
+    {
+      "cas": "Pas de facings actuels",
+      "consequence": "PDL et productivite incalculables.",
+      "comportement_attendu": "Seul un plan en part equitable (fair share) est possible : le dire, et ne pas presenter le resultat comme un diagnostic de sur- ou sous-lineaire."
+    },
+    {
+      "cas": "Pas de largeur ni dimensions",
+      "consequence": "PDL calculable seulement en nombre de facings.",
+      "comportement_attendu": "Signaler que la conclusion peut s'inverser une fois les largeurs connues (R9)."
+    },
+    {
+      "cas": "Periode de reference contenant une promotion",
+      "consequence": "Demande surestimee sur les references promues.",
+      "comportement_attendu": "Signaler la periode et proposer une base hors promotion."
+    },
+    {
+      "cas": "Perimetre des ventes different du perimetre du rayon",
+      "consequence": "Ventes tous circuits appliquees a un rayon d'une seule enseigne ou d'un seul format.",
+      "comportement_attendu": "Refuser tant que le perimetre n'est pas aligne. C'est une erreur de perimetre, la plus couteuse de toutes."
+    }
+  ]
+}
