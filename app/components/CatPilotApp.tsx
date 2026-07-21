@@ -31,6 +31,12 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [exporting, setExporting] = useState(false);
   const bufRef = useRef<ArrayBuffer | null>(null);
+  // Multi-fichiers (ex. Circana : un fichier = une enseigne). Chaque source
+  // garde son tampon ; l'enseigne active pointe vers l'un d'eux, ou — pour un
+  // export multi-enseigne (Nielsen « Answers ») — vers une valeur interne.
+  const sourcesRef = useRef<{ name: string; buf: ArrayBuffer }[]>([]);
+  const [sourceNames, setSourceNames] = useState<string[]>([]);
+  const [activeSource, setActiveSource] = useState(0);
   const [aiMapping, setAiMapping] = useState(false);
   const [aiNote, setAiNote] = useState<string | null>(null);
   const [reportNote, setReportNote] = useState<string | null>(null);
@@ -107,26 +113,41 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
   }, [pro]);
 
   async function handleFile(file: File) {
+    return handleFiles([file]);
+  }
+
+  // Un ou plusieurs fichiers. Plusieurs = sources (Circana : un fichier = une
+  // enseigne) : on lit la première, les autres sont accessibles par le sélecteur.
+  async function handleFiles(files: File[]) {
     setError(null);
     setBusy(true);
     try {
-      const ext = (file.name.split('.').pop() || '').toLowerCase();
-      if (!['xlsx', 'xls', 'csv', 'txt'].includes(ext)) {
-        throw new Error(
-          locale === 'fr'
-            ? `Extension « .${ext} » non prise en charge. Formats acceptés : Excel (.xlsx, .xls) ou CSV.`
-            : `Unsupported “.${ext}” extension. Accepted formats: Excel (.xlsx, .xls) or CSV.`
-        );
+      const ok: { name: string; buf: ArrayBuffer }[] = [];
+      for (const file of files) {
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        if (!['xlsx', 'xls', 'csv', 'txt'].includes(ext)) {
+          if (files.length === 1)
+            throw new Error(
+              locale === 'fr'
+                ? `Extension « .${ext} » non prise en charge. Formats acceptés : Excel (.xlsx, .xls) ou CSV.`
+                : `Unsupported “.${ext}” extension. Accepted formats: Excel (.xlsx, .xls) or CSV.`
+            );
+          continue; // en multi-dépôt, on ignore silencieusement les non-tableurs
+        }
+        ok.push({ name: file.name, buf: await file.arrayBuffer() });
       }
-      const buf = await file.arrayBuffer();
-      bufRef.current = buf;
+      if (!ok.length) throw new Error(locale === 'fr' ? 'Aucun fichier Excel/CSV valide.' : 'No valid Excel/CSV file.');
+      sourcesRef.current = ok;
+      setSourceNames(ok.map((s) => s.name));
+      setActiveSource(0);
+      bufRef.current = ok[0].buf;
       setAiNote(null);
       setReportNote(null);
       // parseWorkbook lève des erreurs précises (fichier illisible, feuille
       // vide, colonnes d'identification absentes…) affichées telles quelles.
-      const parsed = parseWorkbook(buf, file.name, locale);
+      const parsed = parseWorkbook(ok[0].buf, ok[0].name, locale);
       setDataset(parsed);
-      setFileName(file.name);
+      setFileName(ok[0].name);
       setActive('balanced');
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : 'Erreur de lecture.');
@@ -135,9 +156,64 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
     }
   }
 
+  // Change d'enseigne : soit un autre FICHIER source (Circana), soit une autre
+  // valeur INTERNE de la colonne Markets (Nielsen « Answers »). On régénère.
+  function selectEnseigne(value: string) {
+    setError(null);
+    try {
+      const srcIdx = sourceNames.length > 1 ? sourcesRef.current.findIndex((s) => s.name === value) : -1;
+      if (srcIdx >= 0) {
+        bufRef.current = sourcesRef.current[srcIdx].buf;
+        setActiveSource(srcIdx);
+        const parsed = parseWorkbook(bufRef.current, sourcesRef.current[srcIdx].name, locale);
+        setDataset(parsed);
+        setFileName(sourcesRef.current[srcIdx].name);
+      } else if (bufRef.current) {
+        const parsed = parseWorkbook(bufRef.current, fileName, locale, undefined, {
+          enseigne: value,
+          category: dataset?.category ?? undefined,
+        });
+        setDataset(parsed);
+      }
+      setActive('balanced');
+    } catch (e) {
+      // Enseigne non reconstituable proprement : on le dit sans perdre l'écran.
+      setError(e instanceof Error && e.message ? e.message : 'Erreur de lecture.');
+    }
+  }
+
+  function selectCategory(value: string) {
+    if (!bufRef.current) return;
+    setError(null);
+    try {
+      const parsed = parseWorkbook(bufRef.current, fileName, locale, undefined, {
+        enseigne: dataset?.enseigne ?? undefined,
+        category: value,
+      });
+      setDataset(parsed);
+      setActive('balanced');
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : 'Erreur de lecture.');
+    }
+  }
+
+  // Étiquette d'enseigne lisible pour un nom de fichier Circana.
+  function prettyEnseigne(name: string): string {
+    return name
+      .replace(/\.(xlsx|xls|csv|txt)$/i, '')
+      .replace(/^Reporting\s*Circana[_\s-]*/i, '')
+      .replace(/^Geographies?[_\s-]*/i, '')
+      .replace(/\bCensus\b/i, '')
+      .replace(/[_]+/g, ' ')
+      .trim() || name;
+  }
+
   function loadSample() {
     setError(null);
     bufRef.current = null;
+    sourcesRef.current = [];
+    setSourceNames([]);
+    setActiveSource(0);
     setAiNote(null);
     setReportNote(null);
     setDataset({
@@ -275,6 +351,7 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
           busy={busy}
           onPick={() => inputRef.current?.click()}
           onFile={handleFile}
+          onFiles={handleFiles}
           onSample={loadSample}
         />
       )}
@@ -283,10 +360,11 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
         ref={inputRef}
         type="file"
         accept=".xlsx,.xls,.csv"
+        multiple
         hidden
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) handleFile(f);
+          const fs = Array.from(e.target.files ?? []);
+          if (fs.length) handleFiles(fs);
           e.target.value = '';
         }}
       />
@@ -320,6 +398,39 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
               </span>
             </div>
             <div className="dataset-actions">
+              {(() => {
+                const multiSource = sourceNames.length > 1;
+                const enseigneOpts = multiSource ? sourceNames : dataset.enseignes ?? [];
+                const enseigneVal = multiSource ? sourceNames[activeSource] : dataset.enseigne ?? '';
+                const showEnseigne = enseigneOpts.length > 1;
+                const showCat = (dataset.categories?.length ?? 0) > 1;
+                if (!showEnseigne && !showCat) return null;
+                const lbl = locale === 'fr' ? { e: 'Enseigne', c: 'Catégorie' } : { e: 'Retailer', c: 'Category' };
+                return (
+                  <div className="scope-controls">
+                    {showEnseigne && (
+                      <label>
+                        {lbl.e}
+                        <select value={enseigneVal} onChange={(e) => selectEnseigne(e.target.value)}>
+                          {enseigneOpts.map((o) => (
+                            <option key={o} value={o}>{multiSource ? prettyEnseigne(o) : o}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    {showCat && (
+                      <label>
+                        {lbl.c}
+                        <select value={dataset.category ?? ''} onChange={(e) => selectCategory(e.target.value)}>
+                          {(dataset.categories ?? []).map((o) => (
+                            <option key={o} value={o}>{o}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="fixture-controls">
                 <label>
                   {t.shelves}
@@ -444,11 +555,13 @@ function Uploader({
   busy,
   onPick,
   onFile,
+  onFiles,
   onSample,
 }: {
   busy: boolean;
   onPick: () => void;
   onFile: (f: File) => void;
+  onFiles: (f: File[]) => void;
   onSample: () => void;
 }) {
   const { locale } = useLocale();
@@ -465,8 +578,8 @@ function Uploader({
       onDrop={(e) => {
         e.preventDefault();
         setDrag(false);
-        const f = e.dataTransfer.files?.[0];
-        if (f) onFile(f);
+        const fs = Array.from(e.dataTransfer.files ?? []);
+        if (fs.length) onFiles(fs);
       }}
     >
       <div className="uploader-icon" aria-hidden>⬆</div>
