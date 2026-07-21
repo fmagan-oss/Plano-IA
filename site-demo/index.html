@@ -308,6 +308,7 @@ html[data-theme="vivid"] tr.tot td{background:#111827}
     <a data-p="poffres">Offres</a>
   </nav>
   <div class="right"><span class="period">MAT S26-2026 · France HM+SM</span><span class="demo">DONNÉES DÉMO FICTIVES</span>
+  <button class="chatbtn" id="protoggle" title="Basculer Démo / Pro (simulation)" style="background:var(--acc);border-color:var(--acc)" onclick="setPro(!window.PRO)">Passer en Pro (simulation)</button>
   <select class="themesel" id="themesel" title="Design"><option value="platform">Design · Plateforme</option><option value="ink">Design · Encre &amp; Cuivre</option><option value="editorial">Design · Éditorial</option><option value="vivid">Design · Vif</option></select>
   <button class="chatbtn" id="openchat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg>Discussion</button></div>
 </header>
@@ -361,7 +362,7 @@ html[data-theme="vivid"] tr.tot td{background:#111827}
 
   <!-- STEP 2 -->
   <section class="wstep" id="s1" style="display:none">
-    <div class="card"><h3>Choisis le nombre d'éléments de ton rayon</h3><p class="prohint" id="nelhint">Démo : 1 élément. <b>Jusqu'à 4 éléments en Pro.</b></p>
+    <div class="card"><h3>Choisis le nombre d'éléments de ton rayon</h3><p class="prohint" id="nelhint">Démo : 1 élément. <b>Jusqu'à 5 éléments en Pro.</b></p>
       <div class="numrow">
         <div class="numctl"><button onclick="chg('nel',-1)">−</button><div class="val"><span id="v_nel">1</span><small>élément(s)</small></div><button onclick="chg('nel',1)">+</button></div>
         <div class="numctl"><button onclick="chg('wel',-1)">−</button><div class="val"><span id="v_wel">133</span><small>cm / planche</small></div><button onclick="chg('wel',1)">+</button></div>
@@ -614,7 +615,7 @@ document.getElementById('stepper').addEventListener('click',e=>{
   const i=+st.dataset.s; if(i<=cur||i<4) go(i); if(i===4&&document.getElementById('gwrap').children.length) go(4);
 });
 /* ============ CONTRÔLES NUMÉRIQUES ============ */
-const LIMITS={nel:[1,4,1]};
+const LIMITS={nel:[1,5,1]};
 const WELSTEPS=[100,125,133];
 const NPLSTEPS=[0.5,1,2,3,4,5,6];
 function chg(k,d){
@@ -1463,6 +1464,19 @@ document.querySelectorAll('.billing .bopt').forEach(b=>b.addEventListener('click
   document.getElementById('prosub').textContent=annual?'facturé 12 000 € /an':'sans engagement';
 }));
 window.PRO=false;
+/* Bascule Démo / Pro en simulation (bouton d'en-tête) : débloque les éléments
+   (jusqu'à 5) et la trame de présentation acheteur, puis régénère le plan. */
+function setPro(on){
+  window.PRO=!!on;
+  const badge=document.querySelector('.demo');
+  const btn=document.getElementById('protoggle');
+  if(badge) badge.textContent = on ? 'MODE PRO — SIMULATION BÊTA' : 'DONNÉES DÉMO FICTIVES';
+  if(btn) btn.textContent = on ? 'Revenir en Démo' : 'Passer en Pro (simulation)';
+  const nh=document.getElementById('nelhint'); if(nh) nh.style.display = on ? 'none' : '';
+  if(!on){ const[mn,mx]=LIMITS.nel; if(S.nel>1){ S.nel=1; } } // en démo, on rebride à 1 élément
+  try{ if(typeof refreshCtl==='function') refreshCtl(); }catch(e){}
+  try{ if(window.lastPlan && typeof generate==='function') generate(); }catch(e){}
+}
 function activateLic(){
   const k=(document.getElementById('lickey').value||'').trim().toUpperCase();
   const out=document.getElementById('licout'); out.style.display='block';
