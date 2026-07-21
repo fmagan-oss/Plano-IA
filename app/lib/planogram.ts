@@ -386,9 +386,17 @@ function buildBuyerFrame(
   }
   keyMoves.push(
     fr
-      ? `${brandCount} marques blocs-marquées, référence best-seller en tête de bloc, verticalisation par segment.`
-      : `${brandCount} brands in clean blocks, best-seller leading each block, vertical segmentation.`
+      ? `${brandCount} marques en blocs verticaux, best-seller en tête de bloc, leader « ${top?.brand ?? ''} » en entrée de rayon.`
+      : `${brandCount} brands in vertical blocks, best-seller leading each block, leader “${top?.brand ?? ''}” at the aisle entrance.`
   );
+  const mddBlock = blocks.find((b) => isMDD(b.brand));
+  if (mddBlock) {
+    keyMoves.push(
+      fr
+        ? `MDD « ${mddBlock.brand} » positionnée juste à côté du bloc leader (règle merch).`
+        : `Private label “${mddBlock.brand}” placed right next to the leader block (merch rule).`
+    );
+  }
 
   const noveltyPitch = novelties.slice(0, 6).map((p) =>
     fr
