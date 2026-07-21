@@ -18,6 +18,18 @@ export interface Product {
   price: number;
   /** Nouveauté détectée. */
   isNew: boolean;
+  // — Colonnes d'AUDIT planogramme (présentes seulement dans un relevé linéaire,
+  //   jamais dans un export panel). Elles activent R9 et R11 quand elles existent.
+  /** Facings actuels au rayon (relevé). Base de la PDL réelle. */
+  currentFacings?: number;
+  /** Largeur d'un facing (cm) — pour le linéaire développé (R9). */
+  widthCm?: number;
+  /** Rotation en UVC / magasin / semaine (R11). */
+  rotationPerWeek?: number;
+  /** Capacité (UVC) tenue par un facing (R11). */
+  capacityPerFacing?: number;
+  /** Délai de réappro en jours (R11). */
+  reapproDays?: number;
 }
 
 /** Result of parsing an uploaded file. */

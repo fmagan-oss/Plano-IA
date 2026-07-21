@@ -388,5 +388,17 @@
   "corpus/nielsen-answers-multi-enseigne.xlsx": {
     "report": true,
     "at": "2026-07-21"
+  },
+  "corpus/audit-planogramme-releve.xlsx": {
+    "headers": [
+      "Marque",
+      "CA (€)",
+      "Facings actuels",
+      "Largeur facing (cm)",
+      "Rotation (UVC/mag/sem)",
+      "Capacite par facing (UVC)",
+      "Reappro (jours)"
+    ],
+    "at": "2026-07-21"
   }
 }
