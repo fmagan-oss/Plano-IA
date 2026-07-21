@@ -64,5 +64,19 @@ for (const s of plano.shelves) {
 check('marques contiguës sur chaque niveau (jamais 2 segments)', contiguousOK);
 check('même ordre de marques sur tous les niveaux (bande verticale)', alignedOK, ref);
 
+console.log('\n▸ leader dominant + longue traîne (poids respectés, pas de plan « à plat »)');
+// 1 leader écrasant + 11 micro-marques, autant de marques que de colonnes (12).
+// Le dessin doit refléter le poids (le leader garde plusieurs colonnes), pas
+// donner 12 bandes égales. La traîne non dessinée reste au plan de masse.
+const many = [P('lead', 'LEADER', 300000, 9000)];
+for (let i = 0; i < 11; i++) many.push(P('t' + i, 'TAIL' + i, 2000, 60));
+const pm = generatePlanogram(many, 'balanced', { shelves: 5, facingsPerShelf: 12 });
+const leadEye = pm.shelves[1].cells.find((c) => c.product.brand === 'LEADER');
+check('le leader garde plusieurs colonnes au niveau des yeux', (leadEye?.facings ?? 0) >= 3, `${leadEye?.facings} facing(s)`);
+const drawnSet = new Set();
+for (const s of pm.shelves) for (const c of s.cells) drawnSet.add(c.product.brand);
+check('la longue traîne n\'est pas dessinée comme 12 bandes égales', drawnSet.size < 12, `${drawnSet.size} marques dessinées`);
+check('toutes les marques restent au plan de masse (table)', pm.brandBlocks.length === 12, `${pm.brandBlocks.length}`);
+
 console.log(`\n${fails === 0 ? 'Règles merch OK ✓' : fails + ' échec(s) ✗'}`);
 process.exit(fails ? 1 : 0);

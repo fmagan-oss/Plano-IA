@@ -275,11 +275,16 @@ function buildShelves(facings: Facing[], blocks: BrandBlock[], fixture: Fixture,
     facingByBrand.get(f.product.brand)!.push(f);
   }
 
-  // Trop de marques pour une colonne chacune : on ne dessine que les premières
-  // (ordre merch) qui tiennent — les autres restent au plan de masse (table).
-  const drawn = blocks.slice(0, colsTotal);
-  // Largeur de bande (colonnes) par marque ≈ facings marque / niveaux ; somme = colsTotal.
-  const widths = distributeInt(drawn.map((b) => b.facings), colsTotal, 1);
+  // Largeur de bande (colonnes) ∝ facings de la marque, somme = colsTotal. On NE
+  // force PAS 1 colonne par marque : sinon, avec autant de marques que de colonnes,
+  // toutes tomberaient à 1 et le poids du leader serait écrasé (plan « à plat »).
+  // Les marques qui n'atteignent pas 1 colonne pleine (queue de gamme) ne sont pas
+  // dessinées comme bloc — elles restent au plan de masse (table brandBlocks).
+  const allWidths = distributeInt(blocks.map((b) => b.facings), colsTotal, 0);
+  let kept = blocks.map((b, i) => ({ block: b, w: allWidths[i] })).filter((x) => x.w > 0);
+  if (!kept.length && blocks.length) kept = [{ block: blocks[0], w: colsTotal }]; // garde-fou
+  const drawn = kept.map((x) => x.block);
+  const widths = kept.map((x) => x.w);
 
   const fillOrder = eyeLevelOrder(S); // niveaux à remplir d'abord : yeux, mains, haut…
 
