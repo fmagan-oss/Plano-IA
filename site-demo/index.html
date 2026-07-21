@@ -223,12 +223,13 @@
 <section data-page="app" hidden><div class="wrap">
   <span class="eyebrow">Application · démo</span>
   <h1 style="font-size:1.7rem;margin-top:.35rem;">Votre catégorie, prête à présenter.</h1>
-  <p class="muted" style="margin-top:.4rem;max-width:60ch;">Catégorie d'exemple, lue automatiquement. Ajustez la mesure, la période, l'enseigne et l'angle stratégique : tout se recalcule.</p>
+  <p class="muted" style="margin-top:.4rem;max-width:64ch;">Catégorie d'exemple, lue automatiquement. Choisissez d'abord <b>l'enseigne</b> et <b>la catégorie</b> — d'une enseigne à l'autre, tout diffère —, puis ajustez la mesure, la période et l'angle stratégique : tout se recalcule.</p>
 
   <div class="controls">
+    <div class="set"><label for="selGeo">Enseigne</label><select id="selGeo"><option value="TOT" selected>Total HYPERS+SUPERS</option><option value="HYP">HYPERS</option><option value="CAR">Carrefour + Drive</option><option value="AUC">Auchan Intégré</option></select></div>
+    <div class="set"><label for="selCat">Catégorie</label><select id="selCat"><option value="cafe" selected>Café</option><option value="x" disabled>Vos autres catégories… (selon le fichier)</option></select></div>
     <div class="set"><label for="selCA">Mesure</label><select id="selCA"><option value="val" selected>Ventes Valeur (Eur)</option><option value="uni">Ventes Unité</option></select></div>
     <div class="set"><label for="selPer">Période</label><select id="selPer"><option value="P2" selected>P2 · 27-01 → 23-02-2025</option><option value="P1">P1 · 30-12 → 26-01-2025</option><option value="P13">P13 · 02-12 → 29-12-2024</option><option value="CAM">Cumul annuel mobile</option></select></div>
-    <div class="set"><label for="selGeo">Enseigne</label><select id="selGeo"><option value="TOT" selected>Total HYPERS+SUPERS</option><option value="HYP">HYPERS</option><option value="CAR">Carrefour + Drive</option><option value="AUC">Auchan Intégré</option></select></div>
   </div>
 
   <div class="card">
@@ -267,7 +268,7 @@
       <button class="btn btn-ghost" type="button" onclick="alert('Démo : dans l’app, export .pptx à ta charte de marque.')">Exporter en PowerPoint</button>
     </div>
   </div>
-  <div class="demo-note"><b>Démo côté navigateur</b> — données café fictives. Dans l'app connectée, vous chargez votre propre fichier et l'Évol N-1 est calculée sur vos vraies colonnes « year ago ».</div>
+  <div class="demo-note"><b>Démo côté navigateur</b> — données café fictives. Dans l'app connectée, vous chargez votre propre fichier : CatPilot lit les exports <b>Circana</b> (croisé) et <b>NielsenIQ</b> (long et large « Answers »), repère la période de référence, écarte l'année précédente et la promo seule, et lit <b>une enseigne et une catégorie à la fois</b> — la liste des enseignes et catégories vient de votre fichier.</div>
 </div></section>
 
 <!-- ============ TARIFS ============ -->
