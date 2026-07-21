@@ -19,7 +19,7 @@ silencieux. Rien n'est modifié sans validation.
 | R6 | unité déclarée (k€/M€, devise) | **FAIT** | k€ → ×1000 ; £/GBP → avertissement devise mixte |
 | R7 | exclure les agrégats par le calcul | **FAIT** | trap-agg : « Café Or » (= Σ des autres) exclu, sans libellé « total » |
 | R8 | colonne/champ manquant signalé | **FAIT (partiel)** | avertissements par champ ; nommage des colonnes-mesure non résolues : à finir |
-| R5 | une seule période — **LONG fait**, croisé à construire | **fait (long)** | long : format détecté (produit répété sur ≥2 périodes), période de référence résolue (cumul YTD/CAM/MAT préféré, sinon période la plus récente), autres périodes écartées, jamais de mélange. Test : fr-format-long-ytd (YTD retenu → 57/43, pas de double comptage). Croisé (Circana HYPERS) : encore refusé, à construire. |
+| R5 | une seule période — long **et** croisé | **FAIT** | **long** : format détecté (produit répété sur ≥2 périodes), période de référence résolue (cumul YTD/CAM/MAT préféré, sinon période la plus récente), autres périodes écartées. Test : fr-format-long-ytd (YTD → 57/43, pas de double comptage). **croisé** (mesure + périodes en colonnes) : période de référence unique choisie (cumul > période > semaine, jamais l'année précédente ni une colonne vide), un seul niveau de hiérarchie = le plus grossier dont la somme reconstitue le total de la catégorie (marques, pas les SKU). Tests : fr-format-croise (P6 → 60/40, total exclu) ; réel Circana HYPERS multi-feuilles (CAM retenu → 6 marques, Σ = 2 395 k€ ≈ total catégorie 2 411 k€, SKU et sous-totaux écartés). Refus propre si aucun niveau ne reconstitue le total. |
 | R9 | PDL sur le linéaire développé | **à construire** | moteur d'allocation (EX09) |
 | R10 | circularité (CA/facing) | **à construire** | moteur d'allocation (EX10) |
 | R11 | plancher anti-rupture | **à construire** | moteur d'allocation (EX11) |
@@ -31,10 +31,12 @@ repli fabricant, unités k€/M€, agrégat détecté par le calcul. Dictionnai
 signatures : `app/lib/column-dictionary.json`, `column-aliases.json`,
 `column-signatures.json`. Exercices EX09/10/11 + attendus dans le corpus de nuit.
 
-**Reste (briques 3 & 4) :** R5 (lire vraiment croisé/long) et R9–R12 (le moteur
-d'**allocation** planogramme — productivité, rotation, PDL sur linéaire, hors
-promo). Ce n'est plus le parseur mais l'allocateur ; confié à la routine
-nocturne, test-d'abord, EX05/06/08/09/10/11 comme non-régression.
+**Reste (brique 4) :** R9–R12 (le moteur d'**allocation** planogramme —
+productivité, rotation, PDL sur linéaire, hors promo). Ce n'est plus le parseur
+mais l'allocateur ; confié à la routine nocturne, test-d'abord,
+EX08/09/10/11 comme non-régression. La couche de lecture (R1–R8, formes long et
+croisé de R5) est terminée : le robot lit à plat, long et croisé, ou refuse
+proprement en expliquant.
 
 ## Ordre proposé (à valider par François)
 
