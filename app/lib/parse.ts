@@ -826,6 +826,48 @@ export function parseWorkbook(
     }
   }
 
+  // --- R5 (enseigne) : format plat/long empilant plusieurs enseignes (colonne
+  // « Markets »/enseigne). On ne les additionne jamais : on lit UNE enseigne
+  // (choisie, sinon la première), et on expose la liste. Garde-fous : la colonne
+  // doit vraiment être une enseigne (libellés texte, peu de valeurs), pas une
+  // mesure (« Market share »…).
+  const idxEnseigne = detectColumn(
+    headers,
+    ['markets', 'market', 'enseigne', 'enseignes', 'circuit', 'circuits', 'geographies', 'geography', 'magasin', 'retailer', 'canal', 'channel'],
+    { anti: ['share', 'part', 'pdm', 'value', 'sales', 'ca', 'valeur'] }
+  );
+  const flatEnseignes: string[] = [];
+  let flatEnseigne: string | null = null;
+  if (idxEnseigne >= 0 && idxEnseigne !== idx.brand && idxEnseigne !== idx.name) {
+    const JUNK = /exported|dataset|copyright|terms|entire dataset|©|reserved|all rights/i;
+    const seenE = new Set<string>();
+    for (let r = headerIdx + 1; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row) continue;
+      const mk = String(row[idxEnseigne] ?? '').trim();
+      if (!mk || seenE.has(mk) || JUNK.test(mk) || TOTAL_RE.test(normalize(mk))) continue;
+      if (/^-?\d[\d\s.,%]*$/.test(mk)) continue; // valeur numérique = pas une enseigne
+      const hasId =
+        (idx.brand >= 0 && String(row[idx.brand] ?? '').trim()) ||
+        (idx.ean >= 0 && String(row[idx.ean] ?? '').trim()) ||
+        (idx.name >= 0 && String(row[idx.name] ?? '').trim());
+      if (!hasId) continue;
+      seenE.add(mk);
+      flatEnseignes.push(mk);
+    }
+    // 2 à 40 enseignes distinctes = vraie dimension enseigne ; au-delà, on doute.
+    if (flatEnseignes.length >= 2 && flatEnseignes.length <= 40) {
+      flatEnseigne = select?.enseigne && flatEnseignes.includes(select.enseigne) ? select.enseigne : flatEnseignes[0];
+      warnings.push(
+        locale === 'fr'
+          ? `Plusieurs enseignes dans le fichier (colonne « ${headers[idxEnseigne]} »). Le planogramme est généré pour UNE enseigne : « ${flatEnseigne} » (${flatEnseignes.length} disponibles — sélectionnez-en une autre au besoin). Les enseignes ne sont jamais additionnées.`
+          : `Several retailers in the file (column “${headers[idxEnseigne]}”). The planogram is generated for ONE retailer: “${flatEnseigne}” (${flatEnseignes.length} available). Retailers are never summed.`
+      );
+    } else {
+      flatEnseignes.length = 0;
+    }
+  }
+
   // --- Diagnostics métier précis ---
   if (idx.ean < 0 && idx.name < 0) {
     warnings.push(D.eanAndNameMissing);
@@ -853,6 +895,12 @@ export function parseWorkbook(
 
     // R5 : format long — ne garder que la période de référence résolue.
     if (refPeriodNorm !== null && normalize(String(row[idxPeriod] ?? '')) !== refPeriodNorm) {
+      continue;
+    }
+    // R5 : plusieurs enseignes — ne lire QUE l'enseigne active (les autres
+    // restent dans le fichier et sont accessibles via le sélecteur ; rien n'est
+    // effacé, on ne les additionne simplement pas).
+    if (flatEnseigne !== null && String(row[idxEnseigne] ?? '').trim() !== flatEnseigne) {
       continue;
     }
 
@@ -966,6 +1014,8 @@ export function parseWorkbook(
     warnings,
     ...(wide
       ? { enseignes: wide.enseignes, enseigne: wide.enseigne, categories: wide.categories, category: wide.category }
+      : flatEnseignes.length
+      ? { enseignes: flatEnseignes, enseigne: flatEnseigne }
       : {}),
   };
 }
