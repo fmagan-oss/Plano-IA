@@ -19,7 +19,7 @@ silencieux. Rien n'est modifié sans validation.
 | R6 | unité déclarée (k€/M€, devise) | **FAIT** | k€ → ×1000 ; £/GBP → avertissement devise mixte |
 | R7 | exclure les agrégats par le calcul | **FAIT** | trap-agg : « Café Or » (= Σ des autres) exclu, sans libellé « total » |
 | R8 | colonne/champ manquant signalé | **FAIT (partiel)** | avertissements par champ ; nommage des colonnes-mesure non résolues : à finir |
-| R5 | une seule période (croisé / long) | **à construire** | croisé encore refusé ; long non filtré (Partie 3, EX05/EX06) |
+| R5 | une seule période — **LONG fait**, croisé à construire | **fait (long)** | long : format détecté (produit répété sur ≥2 périodes), période de référence résolue (cumul YTD/CAM/MAT préféré, sinon période la plus récente), autres périodes écartées, jamais de mélange. Test : fr-format-long-ytd (YTD retenu → 57/43, pas de double comptage). Croisé (Circana HYPERS) : encore refusé, à construire. |
 | R9 | PDL sur le linéaire développé | **à construire** | moteur d'allocation (EX09) |
 | R10 | circularité (CA/facing) | **à construire** | moteur d'allocation (EX10) |
 | R11 | plancher anti-rupture | **à construire** | moteur d'allocation (EX11) |

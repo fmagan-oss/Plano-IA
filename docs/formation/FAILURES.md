@@ -11,5 +11,7 @@ un test qui échoue, puis on corrige.*
 | 2026-07-20 | « MANUFACTURER » pris pour la marque | R2 | trap-fab (marque = BRAND) |
 | 2026-07-20 | agrégat ombrelle sans « total » compté comme marque | R7 | trap-agg (« Café Or » = Σ des autres) |
 
+| 2026-07-21 | format long : produit compté N fois (semaines + cumul) | R5 (long) | fr-format-long-ytd (période résolue = cumul YTD, filtrée) |
+
 À compléter chaque nuit : R5 (formes croisé/long — EX05/EX06), R9–R12 (allocation
 — EX08/EX09/EX10/EX11).
