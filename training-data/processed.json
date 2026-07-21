@@ -366,5 +366,15 @@
       "Qté"
     ],
     "at": "2026-07-21"
+  },
+  "corpus/fr-format-long-ytd.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "Période",
+      "CA HT",
+      "Qté"
+    ],
+    "at": "2026-07-21"
   }
 }

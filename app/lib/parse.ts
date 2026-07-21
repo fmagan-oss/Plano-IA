@@ -197,6 +197,42 @@ function periodTag(header: string | null): string | null {
   return d ? d[0] : null;
 }
 
+// --- R5 (format long) : la période est une COLONNE, une ligne par produit ×
+// période. Il faut résoudre UNE période avant tout calcul, et ne jamais
+// additionner une ligne de cumul (YTD/CAM/MAT) avec ses semaines. ---
+const PERIOD_ALIASES = [
+  'periode', 'period', 'periods', 'semaine', 'week', 'mois', 'month',
+  'timeframe', 'temps', 'periodicite', 'fin de periode', 'periode analyse',
+];
+// Libellés de cumul : ils contiennent déjà les périodes plus fines.
+const CUMUL_RE = /ytd|cumul|\bcam\b|\bctd\b|\bmat\b|moving annual|rolling|\br12\b|12 mois|year to date/;
+
+function parsePeriodDate(s: string): number | null {
+  const m = s.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/);
+  if (!m) return null;
+  let y = parseInt(m[3], 10);
+  if (y < 100) y += 2000;
+  return new Date(y, parseInt(m[2], 10) - 1, parseInt(m[1], 10)).getTime();
+}
+
+/**
+ * Choisit la période de référence pour un plan de masse. Un cumul (YTD/CAM/MAT)
+ * est préféré s'il existe : plus représentatif qu'une semaine isolée, et c'est
+ * une période résolue unique (jamais mélangée avec les semaines qu'il contient).
+ * Sinon, la période fine la plus récente. Le choix est toujours signalé ; un
+ * sélecteur de période (mesure/période/enseigne) viendra plus tard.
+ */
+function pickReferencePeriod(distinct: string[]): string {
+  const cumul = distinct.filter((d) => CUMUL_RE.test(normalize(d)));
+  if (cumul.length) {
+    const mat = cumul.find((d) => /\bmat\b|moving annual|12 mois|rolling|\br12\b/.test(normalize(d)));
+    return mat ?? cumul[cumul.length - 1];
+  }
+  const dated = distinct.map((p) => ({ p, k: parsePeriodDate(p) })).filter((x) => x.k != null) as { p: string; k: number }[];
+  if (dated.length) return dated.sort((a, b) => b.k - a.k)[0].p;
+  return distinct[distinct.length - 1];
+}
+
 function toNumber(v: unknown): number {
   if (typeof v === 'number') return isFinite(v) ? v : 0;
   if (v == null) return 0;
@@ -304,6 +340,40 @@ export function parseWorkbook(
     );
   }
 
+  // --- R5 : format long (période en colonne, une ligne par produit × période) ---
+  // On ne le déclenche que si un même produit apparaît sous ≥ 2 périodes — sinon
+  // une simple colonne « Date » sur un tableau à plat ferait tout supprimer.
+  const idxPeriod = detectColumn(headers, PERIOD_ALIASES, {});
+  let refPeriodNorm: string | null = null;
+  let refPeriodLabel = '';
+  if (idxPeriod >= 0) {
+    const keyIdx = idx.ean >= 0 ? idx.ean : idx.name >= 0 ? idx.name : idx.brand;
+    const seen = new Map<string, Set<string>>();
+    const allPeriods = new Set<string>();
+    for (let r = headerIdx + 1; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row) continue;
+      const per = String(row[idxPeriod] ?? '').trim();
+      if (!per) continue;
+      allPeriods.add(per);
+      if (keyIdx >= 0) {
+        const k = String(row[keyIdx] ?? '').trim();
+        if (k) (seen.get(k) ?? seen.set(k, new Set()).get(k)!).add(per);
+      }
+    }
+    const productRepeats = [...seen.values()].some((s) => s.size >= 2);
+    if (allPeriods.size >= 2 && productRepeats) {
+      refPeriodLabel = pickReferencePeriod([...allPeriods]);
+      refPeriodNorm = normalize(refPeriodLabel);
+      detectedColumns.period = headers[idxPeriod];
+      warnings.push(
+        locale === 'fr'
+          ? `Format « long » détecté (colonne « ${headers[idxPeriod]} ») : une ligne par produit et par période. L'analyse ne porte que sur « ${refPeriodLabel} » ; les autres périodes sont écartées, et une période n'est jamais additionnée à un cumul (YTD/CAM/MAT) — sinon un produit serait compté plusieurs fois.`
+          : `“Long” format detected (column “${headers[idxPeriod]}”): one row per product and period. Analysis uses only “${refPeriodLabel}”; other periods are dropped and a period is never summed with a cumulative (YTD/CAM/MAT), to avoid counting a product several times.`
+      );
+    }
+  }
+
   // --- Diagnostics métier précis ---
   if (idx.ean < 0 && idx.name < 0) {
     warnings.push(D.eanAndNameMissing);
@@ -328,6 +398,11 @@ export function parseWorkbook(
   for (let r = headerIdx + 1; r < rows.length; r++) {
     const row = rows[r];
     if (!row || row.every((c) => c == null || String(c).trim() === '')) continue;
+
+    // R5 : format long — ne garder que la période de référence résolue.
+    if (refPeriodNorm !== null && normalize(String(row[idxPeriod] ?? '')) !== refPeriodNorm) {
+      continue;
+    }
 
     const brand = idx.brand >= 0 ? String(row[idx.brand] ?? '').trim() : '';
     const ean = idx.ean >= 0 ? String(row[idx.ean] ?? '').trim() : '';
