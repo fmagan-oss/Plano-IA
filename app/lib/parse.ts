@@ -372,6 +372,201 @@ function detectAndPivotCrossTab(wb: XLSX.WorkBook): { rows: unknown[][]; period:
   return { rows: out, period: best.period, promoFiltered: best.promoFiltered };
 }
 
+/**
+ * R5 (format « Answers » large, type NielsenIQ) : en-tête sur DEUX lignes — une
+ * bande de périodes (YTD/MAT/semaines) au-dessus d'une ligne de mesures nommées
+ * (Sales Value, Sales Units, …) —, et une hiérarchie produit en lignes via des
+ * colonnes Marché / Catégorie / Marque / EAN (ex. Markets / GROEP / MERK / UPC),
+ * le niveau étant donné par les cellules remplies (marque sans EAN = sous-total
+ * marque). On lit UNE période de référence (cumul MAT/YTD préféré, jamais
+ * l'année précédente), la mesure « Sales Value » PLEINE (ni « Any Promo » ni
+ * « YA »), et le niveau marque dont la somme reconstitue le total catégorie.
+ *
+ * IMPORTANT (enseigne) : ces exports empilent PLUSIEURS enseignes (colonne
+ * « Markets ») dans la même feuille. On ne lit JAMAIS toutes enseignes
+ * confondues (ce serait une somme fausse) : on lit UNE enseigne — celle choisie
+ * (`enseigne`) ou, par défaut, la première réelle — et on expose la liste des
+ * enseignes disponibles pour que l'utilisateur choisisse.
+ */
+export interface WidePivot {
+  entries: PivotEntry[];
+  period: string;
+  promoFiltered: boolean;
+  enseignes: string[];
+  enseigne: string | null;
+  categories: string[];
+  category: string | null;
+}
+function pivotWideNamed(raw: unknown[][], enseigne?: string, category?: string): WidePivot | null {
+  const revAliases = COLUMN_ALIASES.revenue.map(normalize);
+  const volAliases = COLUMN_ALIASES.volume.map(normalize);
+  const brandAliases = [...COLUMN_ALIASES.brand.map(normalize), 'merk', 'marque', 'brand'];
+  const eanAliases = [...COLUMN_ALIASES.ean.map(normalize), 'upc', 'ean', 'gencod', 'gtin', 'barcode'];
+  const nameAliases = [...COLUMN_ALIASES.name.map(normalize), 'item', 'libelle', 'description', 'produit', 'sku', 'article'];
+  const PERIOD_TOKEN = /\b(ytd|mat|cam|r12|to date|rolling|moving annual)\b|\bwk ?\d|\bw\/e\b|\bw\.e\b|\bsem(aine)?\b|\bp\d{1,2}\b|\d w\/e|\d ww/i;
+  // CA « plein » : mesure valeur, JAMAIS une mesure volume (« sales » est un
+  // alias CA trop large qui capterait « Sales Units » — on l'exclut par volume),
+  // ni promo, ni année précédente, ni %, ni moyenne/part.
+  const isPlainRev = (m: string) =>
+    !!m && headerMatches(m, revAliases) && !headerMatches(m, volAliases) && !headerMatches(m, YA_TERMS) &&
+    !/promo|% ?chg|evol|ecart|\bya\b/.test(m) && !SHARE_RE.test(m) && !headerMatches(m, NON_SUMMABLE);
+  const isPlainVol = (m: string) =>
+    !!m && headerMatches(m, volAliases) && !headerMatches(m, YA_TERMS) && !/promo|% ?chg|evol|ecart|\bya\b/.test(m) &&
+    !SHARE_RE.test(m) && !headerMatches(m, NON_SUMMABLE);
+
+  // 1. ligne des mesures : contient une mesure « Sales Value » pleine + une
+  //    colonne de hiérarchie (marque). La bande de périodes est juste au-dessus.
+  let mr = -1;
+  for (let i = 1; i < Math.min(raw.length, 14); i++) {
+    const cells = (raw[i] || []).map((c) => normalize(String(c ?? '')));
+    const hasVal = cells.some((c) => isPlainRev(c));
+    const hasBrand = cells.some((c) => c && headerMatches(c, brandAliases));
+    const above = (raw[i - 1] || []).map((c) => String(c ?? '').trim());
+    const periodBand = above.filter((c) => PERIOD_TOKEN.test(c)).length;
+    if (hasVal && hasBrand && periodBand >= 3) { mr = i; break; }
+  }
+  if (mr < 1) return null;
+
+  const meas = (raw[mr] || []).map((c) => normalize(String(c ?? '')));
+  const periodRow = (raw[mr] && raw[mr - 1] || []).map((c) => String(c ?? '').trim());
+  const findCol = (aliases: string[]) => {
+    for (let j = 0; j < meas.length; j++) if (meas[j] && headerMatches(meas[j], aliases)) return j;
+    return -1;
+  };
+  const brandCol = findCol(brandAliases);
+  const eanCol = findCol(eanAliases);
+  const nameCol = findCol(nameAliases);
+  const marketCol = findCol(['markets', 'market', 'enseigne', 'circuit', 'geographies', 'geography', 'magasin', 'retailer', 'channel', 'circuits']);
+  const catCol = findCol(['groep', 'category', 'categorie', 'categoria', 'famille', 'rayon', 'department', 'univers', 'ndh', 'segment']);
+  if (brandCol < 0) return null;
+
+  // 2. période de référence : cumul (MAT/CAM/rolling) préféré, sinon YTD de
+  //    l'année la plus récente ; l'année précédente est portée par la MESURE
+  //    (YA), pas par le libellé de période, donc on garde le libellé le + récent.
+  const yearOf = (s: string) => {
+    const ys = [...s.matchAll(/\b(\d{2})\b/g)].map((m) => parseInt(m[1], 10));
+    return ys.length ? Math.max(...ys) : -1;
+  };
+  const periodInfo = periodRow
+    .map((label, j) => ({ j, label, norm: normalize(label) }))
+    .filter((p) => p.label && PERIOD_TOKEN.test(p.label))
+    .map((p) => ({
+      ...p,
+      isCumul: /\b(mat|cam|r12|rolling|moving annual)\b/.test(p.norm),
+      isYtd: /\b(ytd|to date|cumul)\b/.test(p.norm),
+      year: yearOf(p.norm),
+    }));
+  if (!periodInfo.length) return null;
+  const distinct = [...new Map(periodInfo.map((p) => [p.label, p])).values()];
+  const rank = (p: { isCumul: boolean; isYtd: boolean; year: number }) =>
+    (p.isCumul ? 2 : p.isYtd ? 1 : 0) * 1000 + Math.max(p.year, 0);
+  distinct.sort((a, b) => rank(b) - rank(a));
+
+  // Pour chaque période candidate, on cherche la colonne « Sales Value » pleine ;
+  // on prend la première période qui en a une (et sa colonne « Sales Units »).
+  let refLabel = '';
+  let revCol = -1;
+  let volCol = -1;
+  for (const p of distinct) {
+    const cols = periodInfo.filter((q) => q.label === p.label).map((q) => q.j);
+    const rc = cols.find((j) => isPlainRev(meas[j]));
+    if (rc == null) continue;
+    refLabel = p.label;
+    revCol = rc;
+    volCol = cols.find((j) => isPlainVol(meas[j])) ?? -1;
+    break;
+  }
+  if (revCol < 0) return null;
+  const promoFiltered = meas.some((m) => /promo/.test(m));
+
+  // 2bis. Enseignes disponibles (colonne « Markets ») : on ne compte QUE les
+  // vraies enseignes — une ligne de données réelle (marque ou EAN présent). Les
+  // lignes de pied de page (« Exported: », « Copyright », « Dataset: »…) sont
+  // écartées. On lit une seule enseigne (choisie, sinon la première réelle).
+  const JUNK_MARKET = /exported|dataset|copyright|terms|entire dataset|©|reserved|all rights/i;
+  const isRealRow = (row: unknown[]) => {
+    const brand = String(row[brandCol] ?? '').trim();
+    const hasEan = eanCol >= 0 && !!String(row[eanCol] ?? '').trim();
+    const v = toNumber(row[revCol]);
+    return !!brand || hasEan || (isFinite(v) && v !== 0);
+  };
+  const enseignes: string[] = [];
+  if (marketCol >= 0) {
+    const seen = new Set<string>();
+    for (let r = mr + 1; r < raw.length; r++) {
+      const row = raw[r] || [];
+      const mk = String(row[marketCol] ?? '').trim();
+      if (!mk || seen.has(mk) || JUNK_MARKET.test(mk) || !isRealRow(row)) continue;
+      seen.add(mk); enseignes.push(mk);
+    }
+  }
+  const target = marketCol < 0 ? null : (enseigne && enseignes.includes(enseigne) ? enseigne : enseignes[0] ?? null);
+
+  // 2ter. Catégories (colonne GROEP/Catégorie) DANS l'enseigne cible : un même
+  // fichier peut mêler plusieurs catégories (ex. coloration + soin intime). On
+  // en lit UNE (sinon la somme mélange des catégories) et on expose la liste.
+  const categories: string[] = [];
+  if (catCol >= 0) {
+    const seen = new Set<string>();
+    for (let r = mr + 1; r < raw.length; r++) {
+      const row = raw[r] || [];
+      if (target != null && String(row[marketCol] ?? '').trim() !== target) continue;
+      const cat = String(row[catCol] ?? '').trim();
+      if (!cat || seen.has(cat) || JUNK_MARKET.test(cat) || TOTAL_RE.test(normalize(cat)) || !isRealRow(row)) continue;
+      seen.add(cat); categories.push(cat);
+    }
+  }
+  const targetCat = catCol < 0 ? null : (category && categories.includes(category) ? category : categories[0] ?? null);
+
+  // 3. lecture des lignes (enseigne ET catégorie cibles) : niveau marque = marque
+  //    remplie + EAN vide. Le total catégorie = marque vide (sert à valider).
+  interface WEntry extends PivotEntry { hasEan: boolean }
+  const brandRows: WEntry[] = [];
+  const skuByBrand = new Map<string, { ca: number; vol: number }>();
+  let categoryTotal = 0;
+  for (let r = mr + 1; r < raw.length; r++) {
+    const row = raw[r] || [];
+    if (target != null && String(row[marketCol] ?? '').trim() !== target) continue; // une seule enseigne
+    if (targetCat != null && String(row[catCol] ?? '').trim() !== targetCat) continue; // une seule catégorie
+    const brand = String(row[brandCol] ?? '').trim();
+    const ean = eanCol >= 0 ? String(row[eanCol] ?? '').trim() : '';
+    const ca = toNumber(row[revCol]);
+    const vol = volCol >= 0 ? toNumber(row[volCol]) : 0;
+    if (!brand) { // total catégorie (marque vide) — plus grand = total
+      if (ca > categoryTotal) categoryTotal = ca;
+      continue;
+    }
+    if (TOTAL_RE.test(normalize(brand))) continue; // « TOTAL … » = agrégat explicite
+    if (!ean) {
+      brandRows.push({ name: brand, ca, vol, depth: 0, hasEan: false });
+    } else {
+      const s = skuByBrand.get(brand) ?? { ca: 0, vol: 0 };
+      s.ca += ca; s.vol += vol;
+      skuByBrand.set(brand, s);
+    }
+  }
+
+  // Niveau marque : les sous-totaux marque s'ils existent, sinon l'agrégation des
+  // EAN par marque. On valide que la somme reconstitue le total catégorie.
+  let entries: PivotEntry[] = brandRows.map((b) => ({ name: b.name, ca: b.ca, vol: b.vol, depth: 0 }));
+  if (entries.length < 2 && skuByBrand.size >= 2) {
+    entries = [...skuByBrand.entries()].map(([name, s]) => ({ name, ca: s.ca, vol: s.vol, depth: 0 }));
+  }
+  if (entries.length < 2) return null;
+  const sum = entries.reduce((s, e) => s + Math.max(e.ca, 0), 0);
+  if (categoryTotal > 0 && Math.abs(sum - categoryTotal) / categoryTotal > 0.08) {
+    // Ni les sous-totaux marque ni les EAN ne reconstituent le total : on refuse
+    // plutôt que de produire un plan faux (rigueur).
+    if (skuByBrand.size >= 2) {
+      const alt = [...skuByBrand.entries()].map(([name, s]) => ({ name, ca: s.ca, vol: s.vol, depth: 0 }));
+      const altSum = alt.reduce((s, e) => s + Math.max(e.ca, 0), 0);
+      if (Math.abs(altSum - categoryTotal) / categoryTotal <= 0.08) entries = alt;
+      else return null;
+    } else return null;
+  }
+  return { entries, period: refLabel, promoFiltered, enseignes, enseigne: target, categories, category: targetCat };
+}
+
 /** Repère un marqueur de période dans un en-tête (« P6 », « P12 », ou une date). */
 function periodTag(header: string | null): string | null {
   if (!header) return null;
@@ -455,7 +650,8 @@ export function parseWorkbook(
   buffer: ArrayBuffer,
   fileName = 'fichier',
   locale: Locale = 'fr',
-  overrides?: Record<string, number | null>
+  overrides?: Record<string, number | null>,
+  select?: { enseigne?: string; category?: string }
 ): ParsedDataset {
   const D = DIAG[locale];
   let wb: XLSX.WorkBook;
@@ -473,25 +669,52 @@ export function parseWorkbook(
   let sheetName: string;
   let rows: unknown[][];
   let pivoted = false;
+  let wide: WidePivot | null = null;
   if (pivot && pivot.rows.length > 1) {
     rows = pivot.rows;
     sheetName = 'rapport';
     pivoted = true;
   } else {
-    ({ sheetName, rows } = pickBestSheet(wb));
+    // R5 (format « Answers » large NielsenIQ) : période au-dessus, mesures nommées.
+    for (const sn of wb.SheetNames.slice(0, 8)) {
+      const raw = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, blankrows: false }) as unknown as unknown[][];
+      const w = pivotWideNamed(raw, select?.enseigne, select?.category);
+      if (w && (!wide || w.entries.length > wide.entries.length)) wide = w;
+    }
+    if (wide) {
+      rows = [['Marque', 'CA', 'Volume'], ...wide.entries.map((e) => [e.name, e.ca, e.vol])];
+      sheetName = 'rapport';
+      pivoted = true;
+    } else {
+      ({ sheetName, rows } = pickBestSheet(wb));
+    }
   }
 
   const warnings: string[] = [];
-  if (pivoted) {
-    const promoNote = pivot!.promoFiltered
+  if (pivoted && pivot) {
+    const promoNote = pivot.promoFiltered
       ? (locale === 'fr'
           ? ' Dimension promo détectée : lecture sur la vue complète (promo + hors promo), la « promo seule » est écartée (R12).'
           : ' Promo dimension detected: read on the full view (promo + non-promo); “promo only” is excluded (R12).')
       : '';
     warnings.push(
       locale === 'fr'
-        ? `Rapport croisé lu (mesure et périodes en colonnes) : « Ventes Valeur » = CA, « Ventes Unité » = volume, période retenue « ${pivot!.period} ». Un seul niveau de hiérarchie, totaux exclus — vérifiez qu'aucun sous-total intermédiaire ne subsiste.${promoNote}`
-        : `Cross-tab report read (measure and periods in columns): sales value = revenue, units = volume, reference period “${pivot!.period}”. Single hierarchy level, totals excluded.${promoNote}`
+        ? `Rapport croisé lu (mesure et périodes en colonnes) : « Ventes Valeur » = CA, « Ventes Unité » = volume, période retenue « ${pivot.period} ». Un seul niveau de hiérarchie, totaux exclus — vérifiez qu'aucun sous-total intermédiaire ne subsiste.${promoNote}`
+        : `Cross-tab report read (measure and periods in columns): sales value = revenue, units = volume, reference period “${pivot.period}”. Single hierarchy level, totals excluded.${promoNote}`
+    );
+  } else if (pivoted && wide) {
+    const promoNote = wide.promoFiltered
+      ? (locale === 'fr'
+          ? ' Mesure « Sales Value » pleine utilisée (ni « Any Promo » ni « YA ») (R12/R1).'
+          : ' Full “Sales Value” measure used (not “Any Promo” nor “YA”) (R12/R1).')
+      : '';
+    const scopeNote = locale === 'fr'
+      ? `${wide.enseigne ? ` Enseigne lue : « ${wide.enseigne} »${wide.enseignes.length > 1 ? ` (${wide.enseignes.length} disponibles — sélectionnez-en une autre au besoin)` : ''}.` : ''}${wide.category ? ` Catégorie : « ${wide.category} »${wide.categories.length > 1 ? ` (${wide.categories.length} présentes dans le fichier)` : ''}.` : ''}`
+      : `${wide.enseigne ? ` Retailer read: “${wide.enseigne}”${wide.enseignes.length > 1 ? ` (${wide.enseignes.length} available)` : ''}.` : ''}${wide.category ? ` Category: “${wide.category}”${wide.categories.length > 1 ? ` (${wide.categories.length} in file)` : ''}.` : ''}`;
+    warnings.push(
+      locale === 'fr'
+        ? `Rapport « Answers » large lu (période au-dessus des mesures nommées) : CA = « Sales Value », volume = « Sales Units », période retenue « ${wide.period} ». Niveau marque, total catégorie et sous-totaux exclus.${scopeNote}${promoNote}`
+        : `Wide “Answers” report read (period band above named measures): revenue = “Sales Value”, volume = “Sales Units”, reference period “${wide.period}”. Brand level; category total and subtotals excluded.${scopeNote}${promoNote}`
     );
   }
   if (!rows.length) {
@@ -708,5 +931,12 @@ export function parseWorkbook(
     );
   }
 
-  return { products, detectedColumns, warnings };
+  return {
+    products,
+    detectedColumns,
+    warnings,
+    ...(wide
+      ? { enseignes: wide.enseignes, enseigne: wide.enseigne, categories: wide.categories, category: wide.category }
+      : {}),
+  };
 }
