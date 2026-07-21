@@ -15,6 +15,7 @@ const SUITES = [
   'test-merch.mjs',
   'test-pack-library.mjs',
   'test-linear-diagnostic.mjs',
+  'test-corpus-smoke.mjs',
 ];
 
 let failed = 0;
