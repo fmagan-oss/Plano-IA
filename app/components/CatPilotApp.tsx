@@ -331,6 +331,8 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
         locale,
         frame: effFrame ?? undefined,
         kit: brandKit,
+        enseigne: sourceNames.length > 1 ? sourceNames[activeSource] : dataset?.enseigne ?? undefined,
+        category: dataset?.category ?? undefined,
       });
     } finally {
       setExporting(false);
