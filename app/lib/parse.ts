@@ -222,7 +222,7 @@ function periodRank(p: PeriodCol): number {
   return p.isCumul ? 3 : p.isWeek ? 1 : 2;
 }
 
-function pivotOneSheet(raw: unknown[][]): { entries: PivotEntry[]; period: string; rank: number } | null {
+function pivotOneSheet(raw: unknown[][]): { entries: PivotEntry[]; period: string; rank: number; promoFiltered: boolean } | null {
   const revAliases = COLUMN_ALIASES.revenue.map(normalize);
   const volAliases = COLUMN_ALIASES.volume.map(normalize);
   const isPeriodCell = (c: string) =>
@@ -244,6 +244,21 @@ function pivotOneSheet(raw: unknown[][]): { entries: PivotEntry[]; period: strin
     break;
   }
   if (hi < 0) return null;
+
+  // R12 — dimension « Causales Promo » : chaque produit peut apparaître en
+  // « Total Promo et Hors Promo » (vue complète), « Total Promo » (promo seule)
+  // et « Hors Promo ». On ne garde JAMAIS la promo seule (sinon on ampute la
+  // lecture ou on double compte) : on lit la vue complète promo + hors promo.
+  const causaleCol = (raw[hi] || [])
+    .map((c) => normalize(String(c ?? '')))
+    .findIndex((c) => c.includes('causale') || c === 'promo' || c === 'promotion');
+  const promoOK = (row: unknown[]): boolean => {
+    if (causaleCol < 0) return true;
+    const c = normalize(String(row[causaleCol] ?? ''));
+    if (!c) return true; // causale non renseignée : neutre
+    if (/promo/.test(c) && !/hors/.test(c)) return false; // « Total Promo » seul → exclu (R12)
+    return true; // « … et Hors Promo » (vue complète) ou « Hors Promo »
+  };
 
   // Colonnes-périodes candidates : on écarte l'année précédente (YA/A-1) et les
   // colonnes d'évolution (%Evol, Ecart). On classe cumul > période > semaine.
@@ -275,6 +290,7 @@ function pivotOneSheet(raw: unknown[][]): { entries: PivotEntry[]; period: strin
     const row = raw[r] || [];
     const produit = String(row[produitCol] ?? '').trim();
     if (!produit || !TOTAL_RE.test(normalize(produit))) continue;
+    if (!promoOK(row)) continue; // R12 : total catégorie sur la vue complète, pas la promo seule
     const measure = normalize(String(row[mesureCol] ?? ''));
     if (!isCA(measure)) continue;
     for (const c of candidates) {
@@ -294,6 +310,7 @@ function pivotOneSheet(raw: unknown[][]): { entries: PivotEntry[]; period: strin
     const rawProduit = String(row[produitCol] ?? '');
     const produit = rawProduit.trim();
     if (!produit || TOTAL_RE.test(normalize(produit))) continue; // agrégats explicites exclus
+    if (!promoOK(row)) continue; // R12 : jamais la promo seule (double comptage / lecture amputée)
     const measure = normalize(String(row[mesureCol] ?? ''));
     const rev = isCA(measure);
     const vol = !rev && isVolMeasure(measure);
@@ -313,7 +330,7 @@ function pivotOneSheet(raw: unknown[][]): { entries: PivotEntry[]; period: strin
   const sumAt = (d: number) => entries.filter((e) => e.depth === d).reduce((s, e) => s + e.ca, 0);
   if (depths.length === 1) {
     // Un seul niveau : on le garde tel quel (le fichier propre « croisé »).
-    return { entries, period: ref.label, rank: periodRank(ref) };
+    return { entries, period: ref.label, rank: periodRank(ref), promoFiltered: causaleCol >= 0 };
   }
   // Plusieurs niveaux : on garde le niveau le plus GROSSIER dont la somme des CA
   // reconstitue le total de la catégorie (± 6 %). Référence = le total explicite
@@ -328,7 +345,7 @@ function pivotOneSheet(raw: unknown[][]): { entries: PivotEntry[]; period: strin
   });
   if (!complete.length) return null; // aucun niveau ne reconstitue le total : on refuse
   const chosen = complete[0]; // le plus grossier complet
-  return { entries: entries.filter((e) => e.depth === chosen), period: ref.label, rank: periodRank(ref) };
+  return { entries: entries.filter((e) => e.depth === chosen), period: ref.label, rank: periodRank(ref), promoFiltered: causaleCol >= 0 };
 }
 
 /**
@@ -338,8 +355,8 @@ function pivotOneSheet(raw: unknown[][]): { entries: PivotEntry[]; period: strin
  * dont la période de référence est la plus solide (cumul > période > semaine),
  * puis la plus riche (le plus de marques).
  */
-function detectAndPivotCrossTab(wb: XLSX.WorkBook): { rows: unknown[][]; period: string } | null {
-  let best: { entries: PivotEntry[]; period: string; rank: number } | null = null;
+function detectAndPivotCrossTab(wb: XLSX.WorkBook): { rows: unknown[][]; period: string; promoFiltered: boolean } | null {
+  let best: { entries: PivotEntry[]; period: string; rank: number; promoFiltered: boolean } | null = null;
   for (const sheetName of wb.SheetNames.slice(0, 12)) {
     const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[sheetName], {
       header: 1,
@@ -352,7 +369,7 @@ function detectAndPivotCrossTab(wb: XLSX.WorkBook): { rows: unknown[][]; period:
   if (!best) return null;
   const out: unknown[][] = [['Marque', 'CA', 'Volume']];
   for (const e of best.entries) out.push([e.name, e.ca, e.vol]);
-  return { rows: out, period: best.period };
+  return { rows: out, period: best.period, promoFiltered: best.promoFiltered };
 }
 
 /** Repère un marqueur de période dans un en-tête (« P6 », « P12 », ou une date). */
@@ -466,10 +483,15 @@ export function parseWorkbook(
 
   const warnings: string[] = [];
   if (pivoted) {
+    const promoNote = pivot!.promoFiltered
+      ? (locale === 'fr'
+          ? ' Dimension promo détectée : lecture sur la vue complète (promo + hors promo), la « promo seule » est écartée (R12).'
+          : ' Promo dimension detected: read on the full view (promo + non-promo); “promo only” is excluded (R12).')
+      : '';
     warnings.push(
       locale === 'fr'
-        ? `Rapport croisé lu (mesure et périodes en colonnes) : « Ventes Valeur » = CA, « Ventes Unité » = volume, période retenue « ${pivot!.period} ». Un seul niveau de hiérarchie, totaux exclus — vérifiez qu'aucun sous-total intermédiaire ne subsiste.`
-        : `Cross-tab report read (measure and periods in columns): sales value = revenue, units = volume, reference period “${pivot!.period}”. Single hierarchy level, totals excluded.`
+        ? `Rapport croisé lu (mesure et périodes en colonnes) : « Ventes Valeur » = CA, « Ventes Unité » = volume, période retenue « ${pivot!.period} ». Un seul niveau de hiérarchie, totaux exclus — vérifiez qu'aucun sous-total intermédiaire ne subsiste.${promoNote}`
+        : `Cross-tab report read (measure and periods in columns): sales value = revenue, units = volume, reference period “${pivot!.period}”. Single hierarchy level, totals excluded.${promoNote}`
     );
   }
   if (!rows.length) {
