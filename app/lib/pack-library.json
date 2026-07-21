@@ -1,0 +1,17 @@
+{
+  "_comment": "Bibliothèque de packs — dimensions typiques d'un facing par catégorie, enrichissable par EAN. Sert à disposer d'une largeur réaliste (R9, linéaire développé) et d'un visuel SANS ressaisie manuelle : on matche l'EAN si connu, sinon on retombe sur le défaut de la catégorie. Largeurs/hauteurs en millimètres (face avant du pack posé en rayon).",
+  "categoryDefaults": {
+    "coloration": { "widthMm": 42, "heightMm": 165, "depthMm": 42, "label": "Coloration / hair colour (étui)" },
+    "hygiene_intime": { "widthMm": 55, "heightMm": 150, "depthMm": 45, "label": "Hygiène intime (étui/flacon)" },
+    "soin_capillaire": { "widthMm": 60, "heightMm": 220, "depthMm": 55, "label": "Soin capillaire (flacon)" },
+    "epicerie": { "widthMm": 70, "heightMm": 200, "depthMm": 70, "label": "Épicerie (défaut générique)" },
+    "default": { "widthMm": 60, "heightMm": 180, "depthMm": 55, "label": "Défaut générique" }
+  },
+  "categoryAliases": {
+    "coloration": ["hair colour", "hair color", "haarkleur", "coloration", "colorant", "male hair"],
+    "hygiene_intime": ["vagisil", "intimate", "feminine", "hygiene intime", "intime", "protection"],
+    "soin_capillaire": ["shampoo", "shampooing", "conditioner", "après-shampooing", "soin cheveux"],
+    "epicerie": ["grocery", "epicerie", "épicerie", "food"]
+  },
+  "packs": {}
+}
