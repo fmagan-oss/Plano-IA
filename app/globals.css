@@ -379,6 +379,11 @@ main { min-height: 60vh; }
 .fixture-controls label { display: flex; flex-direction: column; font-size: 0.72rem; color: var(--muted); gap: 0.2rem; }
 .fixture-controls select { border: 1px solid var(--border); border-radius: 7px; padding: 0.3rem 0.4rem; background: var(--surface); font-size: 0.9rem; }
 
+/* Sélecteur enseigne / catégorie (rapports multi-enseigne) — mis en avant. */
+.scope-controls { display: flex; gap: 0.8rem; padding: 0.4rem 0.7rem; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2, var(--surface)); }
+.scope-controls label { display: flex; flex-direction: column; font-size: 0.72rem; color: var(--muted); gap: 0.2rem; font-weight: 600; }
+.scope-controls select { border: 1px solid var(--border); border-radius: 7px; padding: 0.3rem 0.5rem; background: var(--surface); font-size: 0.9rem; max-width: 15rem; }
+
 /* AI mapping net + bad-read report */
 .fixnet { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; margin: 0.8rem 0; }
 .fixnet-note { font-size: 0.86rem; color: var(--ok); font-weight: 600; }
