@@ -20,10 +20,10 @@ silencieux. Rien n'est modifié sans validation.
 | R7 | exclure les agrégats par le calcul | **FAIT** | trap-agg : « Café Or » (= Σ des autres) exclu, sans libellé « total » |
 | R8 | colonne/champ manquant signalé | **FAIT (partiel)** | avertissements par champ ; nommage des colonnes-mesure non résolues : à finir |
 | R5 | une seule période — long **et** croisé | **FAIT** | **long** : format détecté (produit répété sur ≥2 périodes), période de référence résolue (cumul YTD/CAM/MAT préféré, sinon période la plus récente), autres périodes écartées. Test : fr-format-long-ytd (YTD → 57/43, pas de double comptage). **croisé** (mesure + périodes en colonnes) : période de référence unique choisie (cumul > période > semaine, jamais l'année précédente ni une colonne vide), un seul niveau de hiérarchie = le plus grossier dont la somme reconstitue le total de la catégorie (marques, pas les SKU). Tests : fr-format-croise (P6 → 60/40, total exclu) ; réel Circana HYPERS multi-feuilles (CAM retenu → 6 marques, Σ = 2 395 k€ ≈ total catégorie 2 411 k€, SKU et sous-totaux écartés). Refus propre si aucun niveau ne reconstitue le total. |
-| R9 | PDL sur le linéaire développé | **à construire** | moteur d'allocation (EX09) |
-| R10 | circularité (CA/facing) | **à construire** | moteur d'allocation (EX10) |
-| R11 | plancher anti-rupture | **à construire** | moteur d'allocation (EX11) |
-| R12 | période promo exclue | **à construire** | moteur d'allocation (EX08) |
+| R9 | PDL sur le linéaire développé | **FAIT** | `linear-diagnostic.pdlDiagnostic` : PDL = facings × largeur. EX09 : JUST FOR MEN sous-linéarisé 20 pt, L'ORÉAL sur-linéarisé 10 pt (conclusion inversée vs facings). Largeurs absentes → signalé, repli facings. |
+| R10 | circularité (CA/facing) | **FAIT** | `productivityDiagnostic` : signal = productivité/facing, pas CA brut. EX10 : BARBE NOIR 2,80× rationné, COLORATION BRUN 0,62× sur-linéarisé (verdict inverse du CA brut). |
+| R11 | plancher anti-rupture | **FAIT** | `ruptureFloor` : facings_mini = ⌈(rot/j × réappro × coef_pointe)/capacité⌉. EX11 : BARBE NOIR 6 facings requis vs 2 = rupture ; coef_pointe paramétrable. |
+| R12 | période promo exclue | **FAIT** | pivot croisé : dimension « Causales Promo » → lecture sur « Total Promo et Hors Promo », la « promo seule » écartée. Test fr-croise-promo (Arôma 60000, pas 13000 promo ni 73000 sommé). |
 
 **Fait (briques 1 & 2 — la couche d'identification du parseur) :** dictionnaire
 459 alias adopté, anti-alias, YA écarté du courant, moyennes non sommables,
@@ -31,12 +31,16 @@ repli fabricant, unités k€/M€, agrégat détecté par le calcul. Dictionnai
 signatures : `app/lib/column-dictionary.json`, `column-aliases.json`,
 `column-signatures.json`. Exercices EX09/10/11 + attendus dans le corpus de nuit.
 
-**Reste (brique 4) :** R9–R12 (le moteur d'**allocation** planogramme —
-productivité, rotation, PDL sur linéaire, hors promo). Ce n'est plus le parseur
-mais l'allocateur ; confié à la routine nocturne, test-d'abord,
-EX08/09/10/11 comme non-régression. La couche de lecture (R1–R8, formes long et
-croisé de R5) est terminée : le robot lit à plat, long et croisé, ou refuse
-proprement en expliquant.
+**Fait (brique 4 — le moteur d'allocation) :** R9 (PDL sur linéaire développé),
+R10 (productivité par facing, pas CA brut), R11 (plancher anti-rupture par la
+rotation), R12 (vue promo complète, promo seule écartée). Fonctions pures dans
+`app/lib/linear-diagnostic.ts`, testées contre le corrigé (EX09/10/11) par
+`scripts/test-linear-diagnostic.mjs`. R12 dans le pivot croisé de `parse.ts`.
+
+**Les 12 règles sont opérationnelles.** Reste à la routine nocturne : brancher
+ces diagnostics dans l'UI (afficher sur/sous-linéarisation, plancher rotation,
+alerte quand deux méthodes divergent — EX10+EX11), élargir le corpus de fichiers
+réels, et calibrer le coefficient de pointe par catégorie/enseigne.
 
 ## Ordre proposé (à valider par François)
 
