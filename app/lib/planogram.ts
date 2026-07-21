@@ -57,18 +57,32 @@ export const STRATEGIES: Record<StrategyKey, Strategy> = {
 
 export const DEFAULT_FIXTURE: Fixture = { shelves: 5, facingsPerShelf: 12 };
 
-/** Weight of a product for a given strategy. */
-function productWeight(p: Product, key: StrategyKey): number {
+interface MetricTotals { rev: number; vol: number; mar: number }
+
+/**
+ * Poids d'un produit pour une stratégie — sur des PARTS normalisées (0..1), pas
+ * des valeurs brutes. Mélanger des € (CA) et des unités (volume) bruts n'a pas de
+ * sens : le CA (grand) écrasait tout et « équilibré » n'était pas équilibré.
+ * On raisonne donc en parts : part de CA, part de volume, part de marge.
+ * - revenue = part de CA = fair-share valeur (cohérent avec R10 : à facings ∝
+ *   valeur, le CA/facing est ~constant → pas de sur/sous-linéarisation artificielle) ;
+ * - rotation = part de volume ; margin = part de marge ;
+ * - balanced = ancré sur la valeur (fair-share) puis tilté rotation/marge.
+ */
+function productWeight(p: Product, key: StrategyKey, tot: MetricTotals): number {
+  const rv = Math.max(p.revenue, 0) / tot.rev;
+  const vl = Math.max(p.volume, 0) / tot.vol;
+  const mg = Math.max(p.margin, 0) / tot.mar;
   switch (key) {
     case 'rotation':
-      return Math.max(p.volume, 0);
+      return vl;
     case 'margin':
-      return Math.max(p.margin, 0);
+      return mg;
     case 'revenue':
-      return Math.max(p.revenue, 0);
+      return rv;
     case 'balanced':
     default:
-      return 0.45 * Math.max(p.revenue, 0) + 0.35 * Math.max(p.volume, 0) + 0.2 * Math.max(p.margin, 0);
+      return 0.5 * rv + 0.3 * vl + 0.2 * mg;
   }
 }
 
@@ -86,10 +100,17 @@ function allocateFacings(products: Product[], total: number, key: StrategyKey): 
   let remaining = total - guaranteed;
   if (remaining < 0) remaining = 0;
 
-  // Novelty bonus: nudge weights so new products get a fair shot at eye level.
+  // Totaux par métrique → poids en PARTS normalisées (cf. productWeight).
+  const tot: MetricTotals = {
+    rev: products.reduce((a, p) => a + Math.max(p.revenue, 0), 0) || 1,
+    vol: products.reduce((a, p) => a + Math.max(p.volume, 0), 0) || 1,
+    mar: products.reduce((a, p) => a + Math.max(p.margin, 0), 0) || 1,
+  };
+  // Bonus nouveauté : boost RELATIF (25 %), pas un « +1 » absolu qui écraserait
+  // l'échelle des parts (les nouveautés ont déjà le plancher d'1 facing).
   const rawWeights = products.map((p) => {
-    const w = productWeight(p, key);
-    return p.isNew ? w * 1.15 + 1 : w;
+    const w = productWeight(p, key, tot);
+    return p.isNew ? w * 1.25 : w;
   });
   const totalWeight = rawWeights.reduce((a, b) => a + b, 0) || 1;
 

@@ -400,5 +400,14 @@
       "Reappro (jours)"
     ],
     "at": "2026-07-21"
+  },
+  "corpus/fr-long-multi-enseigne.xlsx": {
+    "headers": [
+      "Enseigne",
+      "Marque",
+      "Période",
+      "CA (€)"
+    ],
+    "at": "2026-07-21"
   }
 }
