@@ -1,0 +1,404 @@
+{
+  "test-D-entetes-exotiques.xlsx": {
+    "headers": [
+      "Fab.",
+      "Code article",
+      "Désig.",
+      "Ventes valeur €",
+      "Qté"
+    ],
+    "at": "2026-07-19"
+  },
+  "inbox/test-D-entetes-exotiques.xlsx": {
+    "headers": [
+      "Fab.",
+      "Code article",
+      "Désig.",
+      "Ventes valeur €",
+      "Qté"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/en-npd.xlsx": {
+    "headers": [
+      "Brand",
+      "Product",
+      "Revenue",
+      "Units",
+      "NPD"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/en-supplier.xlsx": {
+    "headers": [
+      "Supplier",
+      "Description",
+      "Value Sales",
+      "Total Units",
+      "Category"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/en-vendor.xlsx": {
+    "headers": [
+      "Vendor",
+      "Item Description",
+      "Dollar Sales",
+      "Unit Sales",
+      "Avg Price"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-casse-accents.xlsx": {
+    "headers": [
+      "MARQUE",
+      "DESIGNATION",
+      "CA  HT",
+      "QTE",
+      "NOUVEAUTE"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-colonnes-parasites.xlsx": {
+    "headers": [
+      "Période",
+      "Zone",
+      "Marque",
+      "Désig.",
+      "CA HT",
+      "Qté",
+      "Commentaire"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-csv-pv.csv": {
+    "headers": [
+      "Fournisseur",
+      "Réf.",
+      "Ventes en valeur",
+      "UVC",
+      "Prix moyen"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-desig-point.xlsx": {
+    "headers": [
+      "Fabr.",
+      "Désig.",
+      "Code EAN13",
+      "Ventes valeur €",
+      "Qté"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-entetes-ligne3.xlsx": {
+    "headers": [
+      "Fab.",
+      "Désig.",
+      "Gencod",
+      "Ventes valeur",
+      "Ventes volume"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-marche-segment.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "CA (€)",
+      "Quantités",
+      "Marché"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-mq-exact.xlsx": {
+    "headers": [
+      "Mq",
+      "Produit",
+      "Chiffre d’affaires",
+      "Unités"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-pv-moyen.xlsx": {
+    "headers": [
+      "Marque",
+      "Désignation article",
+      "CA TTC",
+      "Volume UVC",
+      "PV moyen",
+      "Marché"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-ref-point.xlsx": {
+    "headers": [
+      "Marque",
+      "Réf.",
+      "CA HT (K€)",
+      "Qtés vendues",
+      "Segment"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-uvc.xlsx": {
+    "headers": [
+      "Fournisseur",
+      "Libellé produit",
+      "Ventes en valeur (€)",
+      "Nb UVC",
+      "PV TTC"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/en-iri-classic.xlsx": {
+    "headers": [
+      "Vendor",
+      "UPC",
+      "Product Description",
+      "Base Dollar Sales",
+      "Avg Unit Price",
+      "Weighted Distribution",
+      "Units"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/en-share-trap.xlsx": {
+    "headers": [
+      "Brand",
+      "Item Description",
+      "Value Share %",
+      "Dollar Sales",
+      "Unit Share %",
+      "Unit Sales",
+      "% ACV"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-ca-parentheses.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "CA (K€)",
+      "Qté"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-categorie-ca-trap.xlsx": {
+    "headers": [
+      "Catégorie",
+      "Marque",
+      "Libellé",
+      "Sell-out net",
+      "Qté"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-entetes-multilignes.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé\nproduit",
+      "Ventes\nvaleur (€)",
+      "Ventes\nvolume",
+      "Prix\nmoyen"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-multi-feuilles.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "CA HT",
+      "Qté",
+      "Segment"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-pdm-trap.xlsx": {
+    "headers": [
+      "Marque",
+      "Désig.",
+      "PDM valeur",
+      "CA (K€)",
+      "PDM volume",
+      "Qté",
+      "DN",
+      "DV"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-poids-ca.xlsx": {
+    "headers": [
+      "Marque",
+      "Réf.",
+      "Poids CA",
+      "CA HT",
+      "Qté"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-csv-milliers.csv": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "CA HT",
+      "Qté"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-ligne-total.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "CA HT",
+      "Qté"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/en-net-sales.xlsx": {
+    "headers": [
+      "Brand",
+      "Product",
+      "Net Sales",
+      "Units Sold"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-montant.xlsx": {
+    "headers": [
+      "Marque",
+      "Article",
+      "Montant",
+      "Quantité"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-sellout.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "Sell-out valeur",
+      "Sell-out volume"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-ventes-euro.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "Ventes (€)",
+      "Ventes (UVC)"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-entetes-2-lignes.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "valeur",
+      "volume",
+      "Prix"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-multi-periodes.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "CA P6",
+      "CA P7",
+      "Qté P7"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/circana-crosstab-fictif.xlsx": {
+    "report": true,
+    "at": "2026-07-21"
+  },
+  "corpus/EX09_PDM_vs_PDL.xlsx": {
+    "headers": [
+      "Marque",
+      "CA (€)",
+      "Facings actuels",
+      "Largeur facing (cm)"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/EX10_circularite_CA_facing.xlsx": {
+    "headers": [
+      "EAN",
+      "Libelle",
+      "CA (€)",
+      "Facings actuels",
+      "Rotation (UVC/mag/sem)"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/EX11_rotation_rupture.xlsx": {
+    "headers": [
+      "EAN",
+      "Libelle",
+      "CA (€)",
+      "Rotation (UVC/mag/sem)",
+      "Facings actuels",
+      "Capacite par facing (UVC)",
+      "Reappro (jours)"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/en-ya-avant-courant.xlsx": {
+    "headers": [
+      "Brand",
+      "Item",
+      "Sales Value YA",
+      "Sales Value",
+      "Sales Units"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-manuf-vs-marque-share.xlsx": {
+    "headers": [
+      "Manufacturer",
+      "Brand",
+      "Product",
+      "Value Share",
+      "CA HT",
+      "Qté"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-format-long-ytd.xlsx": {
+    "headers": [
+      "Marque",
+      "Libellé",
+      "Période",
+      "CA HT",
+      "Qté"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-format-croise.xlsx": {
+    "report": true,
+    "at": "2026-07-21"
+  },
+  "corpus/fr-croise-promo.xlsx": {
+    "report": true,
+    "at": "2026-07-21"
+  },
+  "corpus/nielsen-answers-multi-enseigne.xlsx": {
+    "report": true,
+    "at": "2026-07-21"
+  },
+  "corpus/audit-planogramme-releve.xlsx": {
+    "headers": [
+      "Marque",
+      "CA (€)",
+      "Facings actuels",
+      "Largeur facing (cm)",
+      "Rotation (UVC/mag/sem)",
+      "Capacite par facing (UVC)",
+      "Reappro (jours)"
+    ],
+    "at": "2026-07-21"
+  }
+}

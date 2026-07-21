@@ -1,0 +1,1021 @@
+import * as XLSX from 'xlsx';
+import type { ParsedDataset, Product } from './types';
+import type { Locale } from './i18n';
+import ALIASES_JSON from './column-aliases.json';
+import SIGN_JSON from './column-signatures.json';
+
+/**
+ * Fuzzy column detection for Nielsen / Circana style exports.
+ * The alias dictionary lives in column-aliases.json — it is the file enriched
+ * by the nightly training routine (scripts/train-parser.mjs) and by
+ * user "bad read" reports. Matching is accent/case-insensitive, substring.
+ */
+const COLUMN_ALIASES: Record<string, string[]> = ALIASES_JSON as Record<string, string[]>;
+
+/** Fields the AI mapping fallback and reports operate on. */
+export const MAPPABLE_FIELDS = Object.keys(COLUMN_ALIASES);
+
+/** Libellés métier utilisés dans les diagnostics et l'affichage du mapping. */
+export const FIELD_LABELS: Record<Locale, Record<string, string>> = {
+  fr: {
+    brand: 'Marque', ean: 'EAN / gencod', name: 'Libellé produit', segment: 'Segment',
+    revenue: 'CA', volume: 'Volume', margin: 'Marge', price: 'Prix', isNew: 'Nouveauté',
+  },
+  en: {
+    brand: 'Brand', ean: 'EAN / barcode', name: 'Product label', segment: 'Segment',
+    revenue: 'Value', volume: 'Volume', margin: 'Margin', price: 'Price', isNew: 'Novelty',
+  },
+};
+
+/** Messages de diagnostic localisés. */
+const DIAG: Record<Locale, Record<string, string>> = {
+  fr: {
+    unreadable: "n'a pas pu être lu comme un classeur. Formats pris en charge : .xlsx, .xls, .csv.",
+    noSheet: 'ne contient aucune feuille de calcul.',
+    emptySheet: 'est vide : aucune ligne trouvée.',
+    eanAndNameMissing: 'Vision à l’EAN manquante : aucune colonne EAN/gencod ni libellé produit détectée — les références ne peuvent pas être identifiées individuellement.',
+    eanMissing: 'Vision à l’EAN manquante : colonne EAN/gencod non détectée — l’identification des références se fait par libellé produit.',
+    brandMissing: 'Colonne « Marque / fabricant » non détectée — regroupement par blocs marque impossible.',
+    noKpi: 'Ni CA ni volume détectés — l’allocation de facing sera uniforme (non pondérée).',
+    revenueMissing: 'Colonne « CA » non détectée — la variante CA et l’écart linéaire/CA seront indisponibles.',
+    volumeMissing: 'Colonne « Volume » non détectée — la variante Rotation sera moins fiable.',
+    marginMissing: 'Colonne « Marge » non détectée — la variante Marge utilisera une pondération par défaut.',
+    newMissing: 'Colonne « Nouveauté » non détectée — aucune innovation ne sera mise en avant.',
+  },
+  en: {
+    unreadable: 'could not be read as a workbook. Supported formats: .xlsx, .xls, .csv.',
+    noSheet: 'contains no worksheet.',
+    emptySheet: 'is empty: no rows found.',
+    eanAndNameMissing: 'EAN-level vision missing: no EAN/barcode nor product-label column detected — SKUs cannot be identified individually.',
+    eanMissing: 'EAN-level vision missing: EAN/barcode column not detected — SKUs are identified by product label instead.',
+    brandMissing: '“Brand / manufacturer” column not detected — brand blocking is impossible.',
+    noKpi: 'Neither value nor volume detected — facing allocation will be uniform (unweighted).',
+    revenueMissing: '“Value” column not detected — the Value variant and the shelf/value gap will be unavailable.',
+    volumeMissing: '“Volume” column not detected — the Rotation variant will be less reliable.',
+    marginMissing: '“Margin” column not detected — the Margin variant will use a default weighting.',
+    newMissing: '“Novelty” column not detected — no innovation will be highlighted.',
+  },
+};
+
+function normalize(s: string): string {
+  return s
+    .toString()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[’‘]/g, "'")
+    .replace(/[()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .trim();
+}
+
+// Colonnes de parts/distribution (PDM, share, % ACV, DN/DV, poids…) : jamais
+// des ventes — exclues de la détection des champs numériques.
+const SHARE_RE = /share|part de marche|pdm|acv|distribution|poids|weighted|vmh|(^|[^a-z0-9])(dn|dv)([^a-z0-9]|$)/;
+// Lignes d'agrégats : « Total », « Total catégorie », « Sous-total », « Grand total », « Ensemble marché »…
+const TOTAL_RE = /^(sous.|ss |grand )?total\b|^ensemble\b/;
+// Mesures sommables (ventes) : elles seules excluent les moyennes/parts et l'an dernier.
+const SUMMABLE_SALES = new Set(['revenue', 'volume', 'margin']);
+const CURRENT_PERIOD = new Set(['revenue', 'volume']);
+
+// Dérivé du dictionnaire (docs/formation) : anti-alias par champ (R1/R2),
+// marqueurs année précédente (R1), repli fabricant (R2), colonnes non
+// sommables (R3 — moyennes, parts, indices : jamais prises pour des ventes).
+const ANTI_ALIASES = (SIGN_JSON as { antiAliases: Record<string, string[]> }).antiAliases;
+const YA_TERMS = [...(SIGN_JSON as { yaMarkers: string[] }).yaMarkers, ...(SIGN_JSON as { yaAliases: string[] }).yaAliases].map(normalize);
+const FABRICANT_ALIASES = (SIGN_JSON as { fabricant: string[] }).fabricant;
+const NON_SUMMABLE = (SIGN_JSON as { nonSummable: string[] }).nonSummable.map(normalize);
+
+/** Un en-tête normalisé matche-t-il l'un des alias (frontière de mot si ≤ 2 car.) ? */
+function headerMatches(normHeader: string, aliasesNorm: string[]): boolean {
+  return aliasesNorm.some((na) => {
+    if (!na) return false;
+    if (na.length <= 2) return new RegExp(`(^|[^a-z0-9])${na}([^a-z0-9]|$)`).test(normHeader);
+    return normHeader.includes(na);
+  });
+}
+
+interface DetectOpts {
+  anti?: string[];
+  blockNonSummable?: boolean; // R3 : exclure moyennes/parts/indices
+  blockYA?: boolean; // R1 : exclure l'année précédente pour la période courante
+}
+
+function detectColumn(headers: string[], aliases: string[], opts: DetectOpts = {}): number {
+  const antiN = (opts.anti ?? []).map(normalize);
+  // Un en-tête est éligible s'il n'est ni un anti-alias, ni (le cas échéant)
+  // une moyenne/part, ni une colonne d'année précédente.
+  const eligible = headers.map(normalize).map((h) => {
+    if (!h) return '';
+    if (antiN.length && headerMatches(h, antiN)) return '';
+    if (opts.blockNonSummable && (SHARE_RE.test(h) || headerMatches(h, NON_SUMMABLE))) return '';
+    if (opts.blockYA && headerMatches(h, YA_TERMS)) return '';
+    return h;
+  });
+  const aliasesN = aliases.map(normalize);
+  // 1) exact
+  for (let i = 0; i < eligible.length; i++) {
+    if (eligible[i] && aliasesN.includes(eligible[i])) return i;
+  }
+  // 2) sous-chaîne (alias le plus long d'abord ; frontière de mot si ≤ 2 car.)
+  const sorted = [...aliasesN].sort((a, b) => b.length - a.length);
+  for (let i = 0; i < eligible.length; i++) {
+    if (eligible[i] && headerMatches(eligible[i], sorted)) return i;
+  }
+  return -1;
+}
+
+/** Détection d'un champ domaine, avec sa signature (anti-alias, non-sommable, YA, repli fabricant). */
+function detectField(headers: string[], field: string): number {
+  let i = detectColumn(headers, COLUMN_ALIASES[field], {
+    anti: ANTI_ALIASES[field],
+    blockNonSummable: SUMMABLE_SALES.has(field),
+    blockYA: CURRENT_PERIOD.has(field),
+  });
+  // R2 : la marque prime ; le fabricant n'est un repli que si aucune marque.
+  if (i < 0 && field === 'brand') i = detectColumn(headers, FABRICANT_ALIASES, {});
+  return i;
+}
+
+function findHeaderRow(rows: unknown[][]): number {
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const textCells = (rows[i] || []).filter((c) => typeof c === 'string' && String(c).trim().length > 0).length;
+    if (textCells >= 2) return i;
+  }
+  return 0;
+}
+
+// Certains exports ont une page de garde (« Sommaire ») en première feuille :
+// on retient la feuille dont la ligne d'en-têtes fait matcher le plus de champs.
+function pickBestSheet(wb: XLSX.WorkBook): { sheetName: string; rows: unknown[][] } {
+  let best: { sheetName: string; rows: unknown[][]; score: number } | null = null;
+  for (const sheetName of wb.SheetNames.slice(0, 8)) {
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[sheetName], {
+      header: 1,
+      blankrows: false,
+    }) as unknown as unknown[][];
+    const headers = (rows[findHeaderRow(rows)] || []).map((c) => (c == null ? '' : String(c)));
+    const score = Object.keys(COLUMN_ALIASES).filter(
+      (field) => detectField(headers, field) >= 0
+    ).length;
+    if (!best || score > best.score) best = { sheetName, rows, score };
+  }
+  return best ?? { sheetName: wb.SheetNames[0], rows: [] };
+}
+
+/**
+ * Reconnaît un rapport panel "croisé" (Circana / NielsenIQ) : la mesure est une
+ * colonne à part (Mesures/Measures), les périodes (P6…P13) ou semaines et les
+ * enseignes sont en colonnes, les produits forment une hiérarchie avec des
+ * lignes de total. Ce n'est PAS un tableau "un produit = une ligne" : le
+ * parseur à plat ne peut pas le lire de façon fiable et doit refuser.
+ */
+function looksLikeCrossTabReport(wb: XLSX.WorkBook): boolean {
+  for (const sheetName of wb.SheetNames.slice(0, 12)) {
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[sheetName], {
+      header: 1,
+      blankrows: false,
+    }) as unknown as unknown[][];
+    for (let i = 0; i < Math.min(rows.length, 6); i++) {
+      const cells = (rows[i] || []).map((c) => (c == null ? '' : String(c)));
+      if (cells.map(normalize).some((c) => c === 'mesures' || c === 'measures' || c === 'mesure')) return true;
+      const periodCols = cells.filter(
+        (c) => /\bp\d{1,2}\b.*\bdu\b.*\bau\b/i.test(c) || /\bsem\b.*\bdu\b/i.test(c) || /\bdu\b \d{2}-\d{2}-\d{4} \bau\b/i.test(c)
+      ).length;
+      if (periodCols >= 3) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * R5 (format croisé, type Circana) : la mesure est en colonne (« Mesures »), les
+ * périodes sont en colonnes. On PIVOTE en tableau à plat « une marque = une
+ * ligne » (CA, Volume) sur une période de référence, avant la lecture normale.
+ *
+ * Rigueur (aucun raccourci) :
+ *  - période de référence unique : cumul (CAM/MAT/YTD) préféré, sinon la période
+ *    complète la plus récente ; jamais une colonne « année précédente » (YA/A-1)
+ *    ni une colonne vide (le total de la catégorie doit y être renseigné) ;
+ *  - un seul niveau de hiérarchie : le plus GROSSIER (marques, pas les SKU) dont
+ *    la somme des CA reconstitue le total de la catégorie — pas de double
+ *    comptage ; si aucun niveau ne reconstitue le total, la feuille est refusée
+ *    (on ne fabrique pas un plan faux) ;
+ *  - les mesures non sommables (moyennes, %Evol, VMH, PDL) sont ignorées.
+ */
+interface PivotEntry { name: string; ca: number; vol: number; depth: number }
+
+/** Fin de période d'un en-tête daté (dernière date lue) — pour ordonner. */
+function periodEndKey(header: string): number | null {
+  const dates = [...header.matchAll(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/g)];
+  if (!dates.length) return null;
+  const m = dates[dates.length - 1];
+  let y = parseInt(m[3], 10);
+  if (y < 100) y += 2000;
+  return new Date(y, parseInt(m[2], 10) - 1, parseInt(m[1], 10)).getTime();
+}
+
+interface PeriodCol { j: number; label: string; norm: string; isCumul: boolean; isWeek: boolean; end: number }
+
+/** Rang de préférence d'une période de référence : cumul > période > semaine. */
+function periodRank(p: PeriodCol): number {
+  return p.isCumul ? 3 : p.isWeek ? 1 : 2;
+}
+
+function pivotOneSheet(raw: unknown[][]): { entries: PivotEntry[]; period: string; rank: number; promoFiltered: boolean } | null {
+  const revAliases = COLUMN_ALIASES.revenue.map(normalize);
+  const volAliases = COLUMN_ALIASES.volume.map(normalize);
+  const isPeriodCell = (c: string) =>
+    /\bp\d{1,2}\b.*\bdu\b.*\bau\b/i.test(c) || /\bsem\b.*\bdu\b/i.test(c) || /\bdu\b \d{2}-\d{2}-\d{4} \bau\b/i.test(c);
+  let hi = -1;
+  let mesureCol = -1;
+  let produitCol = -1;
+  let periodCols: number[] = [];
+  for (let i = 0; i < Math.min(raw.length, 8); i++) {
+    const cells = (raw[i] || []).map((c) => (c == null ? '' : String(c)));
+    const norm = cells.map(normalize);
+    const mc = norm.findIndex((c) => c === 'mesures' || c === 'measures' || c === 'mesure');
+    if (mc < 0) continue;
+    const pcs = cells.map((c, j) => ({ c, j })).filter(({ c }) => isPeriodCell(c)).map(({ j }) => j);
+    if (!pcs.length) continue;
+    hi = i; mesureCol = mc; periodCols = pcs;
+    produitCol = norm.findIndex((c) => c === 'produits' || c === 'produit' || c === 'product' || c === 'products');
+    if (produitCol < 0) produitCol = 0;
+    break;
+  }
+  if (hi < 0) return null;
+
+  // R12 — dimension « Causales Promo » : chaque produit peut apparaître en
+  // « Total Promo et Hors Promo » (vue complète), « Total Promo » (promo seule)
+  // et « Hors Promo ». On ne garde JAMAIS la promo seule (sinon on ampute la
+  // lecture ou on double compte) : on lit la vue complète promo + hors promo.
+  const causaleCol = (raw[hi] || [])
+    .map((c) => normalize(String(c ?? '')))
+    .findIndex((c) => c.includes('causale') || c === 'promo' || c === 'promotion');
+  const promoOK = (row: unknown[]): boolean => {
+    if (causaleCol < 0) return true;
+    const c = normalize(String(row[causaleCol] ?? ''));
+    if (!c) return true; // causale non renseignée : neutre
+    if (/promo/.test(c) && !/hors/.test(c)) return false; // « Total Promo » seul → exclu (R12)
+    return true; // « … et Hors Promo » (vue complète) ou « Hors Promo »
+  };
+
+  // Colonnes-périodes candidates : on écarte l'année précédente (YA/A-1) et les
+  // colonnes d'évolution (%Evol, Ecart). On classe cumul > période > semaine.
+  const candidates: PeriodCol[] = periodCols
+    .map((j) => {
+      const label = String(raw[hi][j] ?? '');
+      const nh = normalize(label);
+      return {
+        j, label, norm: nh,
+        isCumul: CUMUL_RE.test(nh),
+        isWeek: /\bsem\b/.test(nh),
+        end: periodEndKey(label) ?? -Infinity,
+      };
+    })
+    .filter((p) => !headerMatches(p.norm, YA_TERMS) && !/%|evol|ecart/.test(p.norm));
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => periodRank(b) - periodRank(a) || b.end - a.end);
+
+  // Total de la catégorie (ligne « TOTAL … », mesure CA) par colonne candidate :
+  // sert à (a) choisir une colonne réellement renseignée, (b) valider le niveau.
+  const totalCA: Record<number, number> = {};
+  const isCA = (m: string) =>
+    !!m && !SHARE_RE.test(m) && !headerMatches(m, NON_SUMMABLE) && !headerMatches(m, YA_TERMS) &&
+    !/%|evol|ecart/.test(m) && headerMatches(m, revAliases);
+  const isVolMeasure = (m: string) =>
+    !!m && !SHARE_RE.test(m) && !headerMatches(m, NON_SUMMABLE) && !headerMatches(m, YA_TERMS) &&
+    !/%|evol|ecart/.test(m) && headerMatches(m, volAliases);
+  for (let r = hi + 1; r < raw.length; r++) {
+    const row = raw[r] || [];
+    const produit = String(row[produitCol] ?? '').trim();
+    if (!produit || !TOTAL_RE.test(normalize(produit))) continue;
+    if (!promoOK(row)) continue; // R12 : total catégorie sur la vue complète, pas la promo seule
+    const measure = normalize(String(row[mesureCol] ?? ''));
+    if (!isCA(measure)) continue;
+    for (const c of candidates) {
+      const v = toNumber(row[c.j]);
+      if (v > (totalCA[c.j] ?? 0)) totalCA[c.j] = v; // total catégorie = le plus grand total
+    }
+  }
+  // Colonne de référence : la mieux classée dont le total catégorie est renseigné.
+  const ref = candidates.find((c) => (totalCA[c.j] ?? 0) > 0) ?? candidates[0];
+  const refCol = ref.j;
+  const grand = totalCA[refCol] ?? 0;
+
+  const map = new Map<string, PivotEntry>();
+  const order: string[] = [];
+  for (let r = hi + 1; r < raw.length; r++) {
+    const row = raw[r] || [];
+    const rawProduit = String(row[produitCol] ?? '');
+    const produit = rawProduit.trim();
+    if (!produit || TOTAL_RE.test(normalize(produit))) continue; // agrégats explicites exclus
+    if (!promoOK(row)) continue; // R12 : jamais la promo seule (double comptage / lecture amputée)
+    const measure = normalize(String(row[mesureCol] ?? ''));
+    const rev = isCA(measure);
+    const vol = !rev && isVolMeasure(measure);
+    if (!rev && !vol) continue;
+    if (!map.has(produit)) {
+      map.set(produit, { name: produit, ca: 0, vol: 0, depth: rawProduit.length - rawProduit.trimStart().length });
+      order.push(produit);
+    }
+    const e = map.get(produit)!;
+    const val = toNumber(row[refCol]);
+    if (rev) e.ca = val; else e.vol = val;
+  }
+  const entries = order.map((p) => map.get(p)!);
+  if (entries.length < 2) return null;
+
+  const depths = [...new Set(entries.map((e) => e.depth))].sort((a, b) => a - b);
+  const sumAt = (d: number) => entries.filter((e) => e.depth === d).reduce((s, e) => s + e.ca, 0);
+  if (depths.length === 1) {
+    // Un seul niveau : on le garde tel quel (le fichier propre « croisé »).
+    return { entries, period: ref.label, rank: periodRank(ref), promoFiltered: causaleCol >= 0 };
+  }
+  // Plusieurs niveaux : on garde le niveau le plus GROSSIER dont la somme des CA
+  // reconstitue le total de la catégorie (± 6 %). Référence = le total explicite
+  // s'il existe, sinon le niveau le plus fin. Aucun niveau valable ⇒ refus.
+  const target = grand > 0 ? grand : sumAt(depths[depths.length - 1]);
+  if (!(target > 0)) return null;
+  const complete = depths.filter((d) => {
+    const lvl = entries.filter((e) => e.depth === d);
+    // Σ du niveau ≈ total ⇒ niveau complet (un zéro ponctuel = marque sans vente
+    // sur la période, légitime ; la reconstitution du total suffit à valider).
+    return lvl.length >= 2 && Math.abs(sumAt(d) - target) / target < 0.06;
+  });
+  if (!complete.length) return null; // aucun niveau ne reconstitue le total : on refuse
+  const chosen = complete[0]; // le plus grossier complet
+  return { entries: entries.filter((e) => e.depth === chosen), period: ref.label, rank: periodRank(ref), promoFiltered: causaleCol >= 0 };
+}
+
+/**
+ * R5 (format croisé, type Circana) : mesure et périodes en colonnes. On PIVOTE
+ * en tableau à plat « une marque = une ligne » sur une période de référence, en
+ * ne gardant qu'un seul niveau de hiérarchie. Entre feuilles, on préfère celle
+ * dont la période de référence est la plus solide (cumul > période > semaine),
+ * puis la plus riche (le plus de marques).
+ */
+function detectAndPivotCrossTab(wb: XLSX.WorkBook): { rows: unknown[][]; period: string; promoFiltered: boolean } | null {
+  let best: { entries: PivotEntry[]; period: string; rank: number; promoFiltered: boolean } | null = null;
+  for (const sheetName of wb.SheetNames.slice(0, 12)) {
+    const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[sheetName], {
+      header: 1,
+      blankrows: false,
+    }) as unknown as unknown[][];
+    const p = pivotOneSheet(raw);
+    if (!p) continue;
+    if (!best || p.rank > best.rank || (p.rank === best.rank && p.entries.length > best.entries.length)) best = p;
+  }
+  if (!best) return null;
+  const out: unknown[][] = [['Marque', 'CA', 'Volume']];
+  for (const e of best.entries) out.push([e.name, e.ca, e.vol]);
+  return { rows: out, period: best.period, promoFiltered: best.promoFiltered };
+}
+
+/**
+ * R5 (format « Answers » large, type NielsenIQ) : en-tête sur DEUX lignes — une
+ * bande de périodes (YTD/MAT/semaines) au-dessus d'une ligne de mesures nommées
+ * (Sales Value, Sales Units, …) —, et une hiérarchie produit en lignes via des
+ * colonnes Marché / Catégorie / Marque / EAN (ex. Markets / GROEP / MERK / UPC),
+ * le niveau étant donné par les cellules remplies (marque sans EAN = sous-total
+ * marque). On lit UNE période de référence (cumul MAT/YTD préféré, jamais
+ * l'année précédente), la mesure « Sales Value » PLEINE (ni « Any Promo » ni
+ * « YA »), et le niveau marque dont la somme reconstitue le total catégorie.
+ *
+ * IMPORTANT (enseigne) : ces exports empilent PLUSIEURS enseignes (colonne
+ * « Markets ») dans la même feuille. On ne lit JAMAIS toutes enseignes
+ * confondues (ce serait une somme fausse) : on lit UNE enseigne — celle choisie
+ * (`enseigne`) ou, par défaut, la première réelle — et on expose la liste des
+ * enseignes disponibles pour que l'utilisateur choisisse.
+ */
+export interface WidePivot {
+  entries: PivotEntry[];
+  period: string;
+  promoFiltered: boolean;
+  enseignes: string[];
+  enseigne: string | null;
+  categories: string[];
+  category: string | null;
+}
+function pivotWideNamed(raw: unknown[][], enseigne?: string, category?: string): WidePivot | null {
+  const revAliases = COLUMN_ALIASES.revenue.map(normalize);
+  const volAliases = COLUMN_ALIASES.volume.map(normalize);
+  const brandAliases = [...COLUMN_ALIASES.brand.map(normalize), 'merk', 'marque', 'brand'];
+  const eanAliases = [...COLUMN_ALIASES.ean.map(normalize), 'upc', 'ean', 'gencod', 'gtin', 'barcode'];
+  const nameAliases = [...COLUMN_ALIASES.name.map(normalize), 'item', 'libelle', 'description', 'produit', 'sku', 'article'];
+  const PERIOD_TOKEN = /\b(ytd|mat|cam|r12|to date|rolling|moving annual)\b|\bwk ?\d|\bw\/e\b|\bw\.e\b|\bsem(aine)?\b|\bp\d{1,2}\b|\d w\/e|\d ww/i;
+  // CA « plein » : mesure valeur, JAMAIS une mesure volume (« sales » est un
+  // alias CA trop large qui capterait « Sales Units » — on l'exclut par volume),
+  // ni promo, ni année précédente, ni %, ni moyenne/part.
+  const isPlainRev = (m: string) =>
+    !!m && headerMatches(m, revAliases) && !headerMatches(m, volAliases) && !headerMatches(m, YA_TERMS) &&
+    !/promo|% ?chg|evol|ecart|\bya\b/.test(m) && !SHARE_RE.test(m) && !headerMatches(m, NON_SUMMABLE);
+  const isPlainVol = (m: string) =>
+    !!m && headerMatches(m, volAliases) && !headerMatches(m, YA_TERMS) && !/promo|% ?chg|evol|ecart|\bya\b/.test(m) &&
+    !SHARE_RE.test(m) && !headerMatches(m, NON_SUMMABLE);
+
+  // 1. ligne des mesures : contient une mesure « Sales Value » pleine + une
+  //    colonne de hiérarchie (marque). La bande de périodes est juste au-dessus.
+  let mr = -1;
+  for (let i = 1; i < Math.min(raw.length, 14); i++) {
+    const cells = (raw[i] || []).map((c) => normalize(String(c ?? '')));
+    const hasVal = cells.some((c) => isPlainRev(c));
+    const hasBrand = cells.some((c) => c && headerMatches(c, brandAliases));
+    const above = (raw[i - 1] || []).map((c) => String(c ?? '').trim());
+    const periodBand = above.filter((c) => PERIOD_TOKEN.test(c)).length;
+    if (hasVal && hasBrand && periodBand >= 3) { mr = i; break; }
+  }
+  if (mr < 1) return null;
+
+  const meas = (raw[mr] || []).map((c) => normalize(String(c ?? '')));
+  const periodRow = (raw[mr] && raw[mr - 1] || []).map((c) => String(c ?? '').trim());
+  const findCol = (aliases: string[]) => {
+    for (let j = 0; j < meas.length; j++) if (meas[j] && headerMatches(meas[j], aliases)) return j;
+    return -1;
+  };
+  const brandCol = findCol(brandAliases);
+  const eanCol = findCol(eanAliases);
+  const nameCol = findCol(nameAliases);
+  const marketCol = findCol(['markets', 'market', 'enseigne', 'circuit', 'geographies', 'geography', 'magasin', 'retailer', 'channel', 'circuits']);
+  const catCol = findCol(['groep', 'category', 'categorie', 'categoria', 'famille', 'rayon', 'department', 'univers', 'ndh', 'segment']);
+  if (brandCol < 0) return null;
+
+  // 2. période de référence : cumul (MAT/CAM/rolling) préféré, sinon YTD de
+  //    l'année la plus récente ; l'année précédente est portée par la MESURE
+  //    (YA), pas par le libellé de période, donc on garde le libellé le + récent.
+  const yearOf = (s: string) => {
+    const ys = [...s.matchAll(/\b(\d{2})\b/g)].map((m) => parseInt(m[1], 10));
+    return ys.length ? Math.max(...ys) : -1;
+  };
+  const periodInfo = periodRow
+    .map((label, j) => ({ j, label, norm: normalize(label) }))
+    .filter((p) => p.label && PERIOD_TOKEN.test(p.label))
+    .map((p) => ({
+      ...p,
+      isCumul: /\b(mat|cam|r12|rolling|moving annual)\b/.test(p.norm),
+      isYtd: /\b(ytd|to date|cumul)\b/.test(p.norm),
+      year: yearOf(p.norm),
+    }));
+  if (!periodInfo.length) return null;
+  const distinct = [...new Map(periodInfo.map((p) => [p.label, p])).values()];
+  const rank = (p: { isCumul: boolean; isYtd: boolean; year: number }) =>
+    (p.isCumul ? 2 : p.isYtd ? 1 : 0) * 1000 + Math.max(p.year, 0);
+  distinct.sort((a, b) => rank(b) - rank(a));
+
+  // Pour chaque période candidate, on cherche la colonne « Sales Value » pleine ;
+  // on prend la première période qui en a une (et sa colonne « Sales Units »).
+  let refLabel = '';
+  let revCol = -1;
+  let volCol = -1;
+  for (const p of distinct) {
+    const cols = periodInfo.filter((q) => q.label === p.label).map((q) => q.j);
+    const rc = cols.find((j) => isPlainRev(meas[j]));
+    if (rc == null) continue;
+    refLabel = p.label;
+    revCol = rc;
+    volCol = cols.find((j) => isPlainVol(meas[j])) ?? -1;
+    break;
+  }
+  if (revCol < 0) return null;
+  const promoFiltered = meas.some((m) => /promo/.test(m));
+
+  // 2bis. Enseignes disponibles (colonne « Markets ») : on ne compte QUE les
+  // vraies enseignes — une ligne de données réelle (marque ou EAN présent). Les
+  // lignes de pied de page (« Exported: », « Copyright », « Dataset: »…) sont
+  // écartées. On lit une seule enseigne (choisie, sinon la première réelle).
+  const JUNK_MARKET = /exported|dataset|copyright|terms|entire dataset|©|reserved|all rights/i;
+  const isRealRow = (row: unknown[]) => {
+    const brand = String(row[brandCol] ?? '').trim();
+    const hasEan = eanCol >= 0 && !!String(row[eanCol] ?? '').trim();
+    const v = toNumber(row[revCol]);
+    return !!brand || hasEan || (isFinite(v) && v !== 0);
+  };
+  const enseignes: string[] = [];
+  if (marketCol >= 0) {
+    const seen = new Set<string>();
+    for (let r = mr + 1; r < raw.length; r++) {
+      const row = raw[r] || [];
+      const mk = String(row[marketCol] ?? '').trim();
+      if (!mk || seen.has(mk) || JUNK_MARKET.test(mk) || !isRealRow(row)) continue;
+      seen.add(mk); enseignes.push(mk);
+    }
+  }
+  const target = marketCol < 0 ? null : (enseigne && enseignes.includes(enseigne) ? enseigne : enseignes[0] ?? null);
+
+  // 2ter. Catégories (colonne GROEP/Catégorie) DANS l'enseigne cible : un même
+  // fichier peut mêler plusieurs catégories (ex. coloration + soin intime). On
+  // en lit UNE (sinon la somme mélange des catégories) et on expose la liste.
+  const categories: string[] = [];
+  if (catCol >= 0) {
+    const seen = new Set<string>();
+    for (let r = mr + 1; r < raw.length; r++) {
+      const row = raw[r] || [];
+      if (target != null && String(row[marketCol] ?? '').trim() !== target) continue;
+      const cat = String(row[catCol] ?? '').trim();
+      if (!cat || seen.has(cat) || JUNK_MARKET.test(cat) || TOTAL_RE.test(normalize(cat)) || !isRealRow(row)) continue;
+      seen.add(cat); categories.push(cat);
+    }
+  }
+  const targetCat = catCol < 0 ? null : (category && categories.includes(category) ? category : categories[0] ?? null);
+
+  // 3. lecture des lignes (enseigne ET catégorie cibles) : niveau marque = marque
+  //    remplie + EAN vide. Le total catégorie = marque vide (sert à valider).
+  interface WEntry extends PivotEntry { hasEan: boolean }
+  const brandRows: WEntry[] = [];
+  const skuByBrand = new Map<string, { ca: number; vol: number }>();
+  let categoryTotal = 0;
+  for (let r = mr + 1; r < raw.length; r++) {
+    const row = raw[r] || [];
+    if (target != null && String(row[marketCol] ?? '').trim() !== target) continue; // une seule enseigne
+    if (targetCat != null && String(row[catCol] ?? '').trim() !== targetCat) continue; // une seule catégorie
+    const brand = String(row[brandCol] ?? '').trim();
+    const ean = eanCol >= 0 ? String(row[eanCol] ?? '').trim() : '';
+    const ca = toNumber(row[revCol]);
+    const vol = volCol >= 0 ? toNumber(row[volCol]) : 0;
+    if (!brand) { // total catégorie (marque vide) — plus grand = total
+      if (ca > categoryTotal) categoryTotal = ca;
+      continue;
+    }
+    if (TOTAL_RE.test(normalize(brand))) continue; // « TOTAL … » = agrégat explicite
+    if (!ean) {
+      brandRows.push({ name: brand, ca, vol, depth: 0, hasEan: false });
+    } else {
+      const s = skuByBrand.get(brand) ?? { ca: 0, vol: 0 };
+      s.ca += ca; s.vol += vol;
+      skuByBrand.set(brand, s);
+    }
+  }
+
+  // Niveau marque : les sous-totaux marque s'ils existent, sinon l'agrégation des
+  // EAN par marque. On valide que la somme reconstitue le total catégorie.
+  let entries: PivotEntry[] = brandRows.map((b) => ({ name: b.name, ca: b.ca, vol: b.vol, depth: 0 }));
+  if (entries.length < 2 && skuByBrand.size >= 2) {
+    entries = [...skuByBrand.entries()].map(([name, s]) => ({ name, ca: s.ca, vol: s.vol, depth: 0 }));
+  }
+  if (entries.length < 2) return null;
+  const sum = entries.reduce((s, e) => s + Math.max(e.ca, 0), 0);
+  if (categoryTotal > 0 && Math.abs(sum - categoryTotal) / categoryTotal > 0.08) {
+    // Ni les sous-totaux marque ni les EAN ne reconstituent le total : on refuse
+    // plutôt que de produire un plan faux (rigueur).
+    if (skuByBrand.size >= 2) {
+      const alt = [...skuByBrand.entries()].map(([name, s]) => ({ name, ca: s.ca, vol: s.vol, depth: 0 }));
+      const altSum = alt.reduce((s, e) => s + Math.max(e.ca, 0), 0);
+      if (Math.abs(altSum - categoryTotal) / categoryTotal <= 0.08) entries = alt;
+      else return null;
+    } else return null;
+  }
+  return { entries, period: refLabel, promoFiltered, enseignes, enseigne: target, categories, category: targetCat };
+}
+
+/** Repère un marqueur de période dans un en-tête (« P6 », « P12 », ou une date). */
+function periodTag(header: string | null): string | null {
+  if (!header) return null;
+  const p = normalize(header).match(/\bp\d{1,2}\b/);
+  if (p) return p[0];
+  const d = header.match(/\d{2}-\d{2}-\d{4}/);
+  return d ? d[0] : null;
+}
+
+// --- R5 (format long) : la période est une COLONNE, une ligne par produit ×
+// période. Il faut résoudre UNE période avant tout calcul, et ne jamais
+// additionner une ligne de cumul (YTD/CAM/MAT) avec ses semaines. ---
+const PERIOD_ALIASES = [
+  'periode', 'period', 'periods', 'semaine', 'week', 'mois', 'month',
+  'timeframe', 'temps', 'periodicite', 'fin de periode', 'periode analyse',
+];
+// Libellés de cumul : ils contiennent déjà les périodes plus fines.
+const CUMUL_RE = /ytd|cumul|\bcam\b|\bctd\b|\bmat\b|moving annual|rolling|\br12\b|12 mois|year to date/;
+
+function parsePeriodDate(s: string): number | null {
+  const m = s.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/);
+  if (!m) return null;
+  let y = parseInt(m[3], 10);
+  if (y < 100) y += 2000;
+  return new Date(y, parseInt(m[2], 10) - 1, parseInt(m[1], 10)).getTime();
+}
+
+/**
+ * Choisit la période de référence pour un plan de masse. Un cumul (YTD/CAM/MAT)
+ * est préféré s'il existe : plus représentatif qu'une semaine isolée, et c'est
+ * une période résolue unique (jamais mélangée avec les semaines qu'il contient).
+ * Sinon, la période fine la plus récente. Le choix est toujours signalé ; un
+ * sélecteur de période (mesure/période/enseigne) viendra plus tard.
+ */
+function pickReferencePeriod(distinct: string[]): string {
+  const cumul = distinct.filter((d) => CUMUL_RE.test(normalize(d)));
+  if (cumul.length) {
+    const mat = cumul.find((d) => /\bmat\b|moving annual|12 mois|rolling|\br12\b/.test(normalize(d)));
+    return mat ?? cumul[cumul.length - 1];
+  }
+  const dated = distinct.map((p) => ({ p, k: parsePeriodDate(p) })).filter((x) => x.k != null) as { p: string; k: number }[];
+  if (dated.length) return dated.sort((a, b) => b.k - a.k)[0].p;
+  return distinct[distinct.length - 1];
+}
+
+function toNumber(v: unknown): number {
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  if (v == null) return 0;
+  const cleaned = String(v)
+    .replace(/\s/g, '')
+    .replace(/€|%/g, '')
+    .replace(/\.(?=\d{3}(\D|$))/g, '') // thousands separator "."
+    .replace(',', '.');
+  const n = parseFloat(cleaned);
+  return isFinite(n) ? n : 0;
+}
+
+function toBool(v: unknown): boolean {
+  if (v == null) return false;
+  const s = normalize(String(v));
+  return ['1', 'oui', 'yes', 'true', 'vrai', 'x', 'new', 'nouveau', 'nouveaute'].includes(s);
+}
+
+/**
+ * Parse an ArrayBuffer (xlsx/xls/csv) into a normalized dataset.
+ * Throws an Error with a precise, user-facing French message when the file is
+ * structurally unusable; recoverable issues land in `warnings`.
+ */
+/** Reads headers + a few sample rows (for reports and the AI mapping net). */
+export function readRawRows(buffer: ArrayBuffer): { headers: string[]; sample: unknown[][] } {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const { rows } = pickBestSheet(wb);
+  const headerIdx = findHeaderRow(rows);
+  return {
+    headers: (rows[headerIdx] || []).map((c) => (c == null ? '' : String(c))),
+    sample: rows.slice(headerIdx + 1, headerIdx + 4),
+  };
+}
+
+export function parseWorkbook(
+  buffer: ArrayBuffer,
+  fileName = 'fichier',
+  locale: Locale = 'fr',
+  overrides?: Record<string, number | null>,
+  select?: { enseigne?: string; category?: string }
+): ParsedDataset {
+  const D = DIAG[locale];
+  let wb: XLSX.WorkBook;
+  try {
+    wb = XLSX.read(buffer, { type: 'array' });
+  } catch {
+    throw new Error(`« ${fileName} » ${D.unreadable}`);
+  }
+  if (!wb.SheetNames.length) {
+    throw new Error(`« ${fileName} » ${D.noSheet}`);
+  }
+  // R5 (croisé) : si c'est un rapport à mesure/périodes en colonnes, on le pivote
+  // en tableau à plat avant tout. Sinon, lecture de la meilleure feuille.
+  const pivot = detectAndPivotCrossTab(wb);
+  let sheetName: string;
+  let rows: unknown[][];
+  let pivoted = false;
+  let wide: WidePivot | null = null;
+  if (pivot && pivot.rows.length > 1) {
+    rows = pivot.rows;
+    sheetName = 'rapport';
+    pivoted = true;
+  } else {
+    // R5 (format « Answers » large NielsenIQ) : période au-dessus, mesures nommées.
+    for (const sn of wb.SheetNames.slice(0, 8)) {
+      const raw = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, blankrows: false }) as unknown as unknown[][];
+      const w = pivotWideNamed(raw, select?.enseigne, select?.category);
+      if (w && (!wide || w.entries.length > wide.entries.length)) wide = w;
+    }
+    if (wide) {
+      rows = [['Marque', 'CA', 'Volume'], ...wide.entries.map((e) => [e.name, e.ca, e.vol])];
+      sheetName = 'rapport';
+      pivoted = true;
+    } else {
+      ({ sheetName, rows } = pickBestSheet(wb));
+    }
+  }
+
+  const warnings: string[] = [];
+  if (pivoted && pivot) {
+    const promoNote = pivot.promoFiltered
+      ? (locale === 'fr'
+          ? ' Dimension promo détectée : lecture sur la vue complète (promo + hors promo), la « promo seule » est écartée (R12).'
+          : ' Promo dimension detected: read on the full view (promo + non-promo); “promo only” is excluded (R12).')
+      : '';
+    warnings.push(
+      locale === 'fr'
+        ? `Rapport croisé lu (mesure et périodes en colonnes) : « Ventes Valeur » = CA, « Ventes Unité » = volume, période retenue « ${pivot.period} ». Un seul niveau de hiérarchie, totaux exclus — vérifiez qu'aucun sous-total intermédiaire ne subsiste.${promoNote}`
+        : `Cross-tab report read (measure and periods in columns): sales value = revenue, units = volume, reference period “${pivot.period}”. Single hierarchy level, totals excluded.${promoNote}`
+    );
+  } else if (pivoted && wide) {
+    const promoNote = wide.promoFiltered
+      ? (locale === 'fr'
+          ? ' Mesure « Sales Value » pleine utilisée (ni « Any Promo » ni « YA ») (R12/R1).'
+          : ' Full “Sales Value” measure used (not “Any Promo” nor “YA”) (R12/R1).')
+      : '';
+    const scopeNote = locale === 'fr'
+      ? `${wide.enseigne ? ` Enseigne lue : « ${wide.enseigne} »${wide.enseignes.length > 1 ? ` (${wide.enseignes.length} disponibles — sélectionnez-en une autre au besoin)` : ''}.` : ''}${wide.category ? ` Catégorie : « ${wide.category} »${wide.categories.length > 1 ? ` (${wide.categories.length} présentes dans le fichier)` : ''}.` : ''}`
+      : `${wide.enseigne ? ` Retailer read: “${wide.enseigne}”${wide.enseignes.length > 1 ? ` (${wide.enseignes.length} available)` : ''}.` : ''}${wide.category ? ` Category: “${wide.category}”${wide.categories.length > 1 ? ` (${wide.categories.length} in file)` : ''}.` : ''}`;
+    warnings.push(
+      locale === 'fr'
+        ? `Rapport « Answers » large lu (période au-dessus des mesures nommées) : CA = « Sales Value », volume = « Sales Units », période retenue « ${wide.period} ». Niveau marque, total catégorie et sous-totaux exclus.${scopeNote}${promoNote}`
+        : `Wide “Answers” report read (period band above named measures): revenue = “Sales Value”, volume = “Sales Units”, reference period “${wide.period}”. Brand level; category total and subtotals excluded.${scopeNote}${promoNote}`
+    );
+  }
+  if (!rows.length) {
+    throw new Error(`« ${sheetName} » ${D.emptySheet}`);
+  }
+
+  const headerIdx = findHeaderRow(rows);
+  const headers = rows[headerIdx].map((c) => (c == null ? '' : String(c)));
+
+  const idx: Record<string, number> = {};
+  const detectedColumns: Record<string, string | null> = {};
+  for (const field of Object.keys(COLUMN_ALIASES)) {
+    const i = detectField(headers, field);
+    idx[field] = i;
+    detectedColumns[field] = i >= 0 ? headers[i] : null;
+  }
+
+  // Colonnes d'AUDIT planogramme (relevé linéaire) — détectées à part pour ne
+  // pas polluer le mapping des champs panel. Elles activent R9 (linéaire
+  // développé) et R11 (plancher rotation) quand elles existent ; sinon ces
+  // règles ne sont tout simplement pas proposées (aucune donnée inventée).
+  const findAudit = (aliases: string[], anti: string[] = []): number => {
+    const antiN = anti.map(normalize);
+    const hs = headers.map(normalize);
+    for (let i = 0; i < hs.length; i++) {
+      if (!hs[i] || (antiN.length && headerMatches(hs[i], antiN))) continue;
+      if (headerMatches(hs[i], aliases.map(normalize))) return i;
+    }
+    return -1;
+  };
+  const auditIdx = {
+    currentFacings: findAudit(['facings actuels', 'facing actuel', 'facings', 'nb facings', 'nombre de facings', 'current facings']),
+    widthCm: findAudit(['largeur facing', 'largeur du facing', 'largeur', 'facing width', 'width cm', 'largeur cm']),
+    rotation: findAudit(['rotation', 'uvc/mag/sem', 'uvc / mag / sem', 'ros units', 'rotation hebdo', 'ventes uvc/mag/sem']),
+    capacity: findAudit(['capacite par facing', 'capacite facing', 'capacite/facing', 'capacity per facing', 'capacite']),
+    reappro: findAudit(['reappro', 'reappro jours', 'delai reappro', 'delai de reappro', 'lead time', 'replenishment']),
+  };
+
+  // AI / manual mapping overrides win over heuristic detection.
+  if (overrides) {
+    for (const field of Object.keys(COLUMN_ALIASES)) {
+      const o = overrides[field];
+      if (typeof o === 'number' && o >= 0 && o < headers.length) {
+        idx[field] = o;
+        detectedColumns[field] = headers[o];
+      }
+    }
+  }
+
+  // --- Règle périodes (rigueur : ne jamais mélanger deux périodes) ---
+  // Si le CA et le volume détectés portent des marqueurs de période différents
+  // (« CA P6 » vs « Qté P7 »), on ne combine pas : on garde la période du CA et
+  // on ignore le volume mal aligné, en le signalant. On ne traite pas une donnée
+  // qu'on n'a pas pour la bonne période, et on n'invente rien.
+  const revTag = periodTag(detectedColumns.revenue);
+  const volTag = periodTag(detectedColumns.volume);
+  if (revTag && volTag && revTag !== volTag) {
+    warnings.push(
+      locale === 'fr'
+        ? `Périodes différentes : CA sur « ${detectedColumns.revenue} » (${revTag.toUpperCase()}), volume sur « ${detectedColumns.volume} » (${volTag.toUpperCase()}). CatPilot ne mélange pas deux périodes : l'analyse se fait sur ${revTag.toUpperCase()} et le volume ${volTag.toUpperCase()} est ignoré. Ne gardez qu'une période par fichier pour une analyse volume fiable.`
+        : `Different periods: sales from “${detectedColumns.revenue}” (${revTag.toUpperCase()}), volume from “${detectedColumns.volume}” (${volTag.toUpperCase()}). CatPilot never mixes two periods: analysis uses ${revTag.toUpperCase()} and the ${volTag.toUpperCase()} volume is ignored.`
+    );
+    idx.volume = -1;
+    detectedColumns.volume = null;
+  }
+
+  // --- R6 : unité déclarée dans l'intitulé (k€/M€ changent l'échelle du CA) ---
+  const revHeaderN = normalize(detectedColumns.revenue || '');
+  const revenueScale = /(m€|meur|m eur)/.test(revHeaderN) ? 1_000_000 : /(k€|keur|k eur)/.test(revHeaderN) ? 1000 : 1;
+  if (idx.revenue >= 0 && headers.some((h) => /£|\bgbp\b/i.test(String(h)))) {
+    warnings.push(
+      locale === 'fr'
+        ? 'Devise mixte détectée (£/GBP) : vérifiez que le CA est dans une seule devise avant toute somme.'
+        : 'Mixed currency (£/GBP) detected: check sales are in a single currency before summing.'
+    );
+  }
+
+  // --- R5 : format long (période en colonne, une ligne par produit × période) ---
+  // On ne le déclenche que si un même produit apparaît sous ≥ 2 périodes — sinon
+  // une simple colonne « Date » sur un tableau à plat ferait tout supprimer.
+  const idxPeriod = detectColumn(headers, PERIOD_ALIASES, {});
+  let refPeriodNorm: string | null = null;
+  let refPeriodLabel = '';
+  if (idxPeriod >= 0) {
+    const keyIdx = idx.ean >= 0 ? idx.ean : idx.name >= 0 ? idx.name : idx.brand;
+    const seen = new Map<string, Set<string>>();
+    const allPeriods = new Set<string>();
+    for (let r = headerIdx + 1; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row) continue;
+      const per = String(row[idxPeriod] ?? '').trim();
+      if (!per) continue;
+      allPeriods.add(per);
+      if (keyIdx >= 0) {
+        const k = String(row[keyIdx] ?? '').trim();
+        if (k) (seen.get(k) ?? seen.set(k, new Set()).get(k)!).add(per);
+      }
+    }
+    const productRepeats = [...seen.values()].some((s) => s.size >= 2);
+    if (allPeriods.size >= 2 && productRepeats) {
+      refPeriodLabel = pickReferencePeriod([...allPeriods]);
+      refPeriodNorm = normalize(refPeriodLabel);
+      detectedColumns.period = headers[idxPeriod];
+      warnings.push(
+        locale === 'fr'
+          ? `Format « long » détecté (colonne « ${headers[idxPeriod]} ») : une ligne par produit et par période. L'analyse ne porte que sur « ${refPeriodLabel} » ; les autres périodes sont écartées, et une période n'est jamais additionnée à un cumul (YTD/CAM/MAT) — sinon un produit serait compté plusieurs fois.`
+          : `“Long” format detected (column “${headers[idxPeriod]}”): one row per product and period. Analysis uses only “${refPeriodLabel}”; other periods are dropped and a period is never summed with a cumulative (YTD/CAM/MAT), to avoid counting a product several times.`
+      );
+    }
+  }
+
+  // --- R5 (enseigne) : format plat/long empilant plusieurs enseignes (colonne
+  // « Markets »/enseigne). On ne les additionne jamais : on lit UNE enseigne
+  // (choisie, sinon la première), et on expose la liste. Garde-fous : la colonne
+  // doit vraiment être une enseigne (libellés texte, peu de valeurs), pas une
+  // mesure (« Market share »…).
+  const idxEnseigne = detectColumn(
+    headers,
+    ['markets', 'market', 'enseigne', 'enseignes', 'circuit', 'circuits', 'geographies', 'geography', 'magasin', 'retailer', 'canal', 'channel'],
+    { anti: ['share', 'part', 'pdm', 'value', 'sales', 'ca', 'valeur'] }
+  );
+  const flatEnseignes: string[] = [];
+  let flatEnseigne: string | null = null;
+  if (idxEnseigne >= 0 && idxEnseigne !== idx.brand && idxEnseigne !== idx.name) {
+    const JUNK = /exported|dataset|copyright|terms|entire dataset|©|reserved|all rights/i;
+    const seenE = new Set<string>();
+    for (let r = headerIdx + 1; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row) continue;
+      const mk = String(row[idxEnseigne] ?? '').trim();
+      if (!mk || seenE.has(mk) || JUNK.test(mk) || TOTAL_RE.test(normalize(mk))) continue;
+      if (/^-?\d[\d\s.,%]*$/.test(mk)) continue; // valeur numérique = pas une enseigne
+      const hasId =
+        (idx.brand >= 0 && String(row[idx.brand] ?? '').trim()) ||
+        (idx.ean >= 0 && String(row[idx.ean] ?? '').trim()) ||
+        (idx.name >= 0 && String(row[idx.name] ?? '').trim());
+      if (!hasId) continue;
+      seenE.add(mk);
+      flatEnseignes.push(mk);
+    }
+    // 2 à 40 enseignes distinctes = vraie dimension enseigne ; au-delà, on doute.
+    if (flatEnseignes.length >= 2 && flatEnseignes.length <= 40) {
+      flatEnseigne = select?.enseigne && flatEnseignes.includes(select.enseigne) ? select.enseigne : flatEnseignes[0];
+      warnings.push(
+        locale === 'fr'
+          ? `Plusieurs enseignes dans le fichier (colonne « ${headers[idxEnseigne]} »). Le planogramme est généré pour UNE enseigne : « ${flatEnseigne} » (${flatEnseignes.length} disponibles — sélectionnez-en une autre au besoin). Les enseignes ne sont jamais additionnées.`
+          : `Several retailers in the file (column “${headers[idxEnseigne]}”). The planogram is generated for ONE retailer: “${flatEnseigne}” (${flatEnseignes.length} available). Retailers are never summed.`
+      );
+    } else {
+      flatEnseignes.length = 0;
+    }
+  }
+
+  // --- Diagnostics métier précis ---
+  if (idx.ean < 0 && idx.name < 0) {
+    warnings.push(D.eanAndNameMissing);
+  } else if (idx.ean < 0) {
+    warnings.push(D.eanMissing);
+  }
+  if (idx.brand < 0) {
+    warnings.push(D.brandMissing);
+  }
+  if (idx.revenue < 0 && idx.volume < 0) {
+    warnings.push(D.noKpi);
+  } else {
+    if (idx.revenue < 0) warnings.push(D.revenueMissing);
+    if (idx.volume < 0) warnings.push(D.volumeMissing);
+  }
+  if (idx.margin < 0) warnings.push(D.marginMissing);
+  if (idx.isNew < 0) warnings.push(D.newMissing);
+
+  const products: Product[] = [];
+  let dropped = 0;
+  let totals = 0;
+  for (let r = headerIdx + 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.every((c) => c == null || String(c).trim() === '')) continue;
+
+    // R5 : format long — ne garder que la période de référence résolue.
+    if (refPeriodNorm !== null && normalize(String(row[idxPeriod] ?? '')) !== refPeriodNorm) {
+      continue;
+    }
+    // R5 : plusieurs enseignes — ne lire QUE l'enseigne active (les autres
+    // restent dans le fichier et sont accessibles via le sélecteur ; rien n'est
+    // effacé, on ne les additionne simplement pas).
+    if (flatEnseigne !== null && String(row[idxEnseigne] ?? '').trim() !== flatEnseigne) {
+      continue;
+    }
+
+    const brand = idx.brand >= 0 ? String(row[idx.brand] ?? '').trim() : '';
+    const ean = idx.ean >= 0 ? String(row[idx.ean] ?? '').trim() : '';
+    const name = idx.name >= 0 ? String(row[idx.name] ?? '').trim() : '';
+    if (!brand && !name && !ean) {
+      dropped++;
+      continue;
+    }
+    // Lignes d'agrégats (« Total catégorie », « Sous-total », « Ensemble »…) :
+    // fréquentes dans les exports panel, elles fausseraient tout le plan de masse.
+    if (TOTAL_RE.test(normalize(brand)) || TOTAL_RE.test(normalize(name))) {
+      totals++;
+      continue;
+    }
+    const revenue = idx.revenue >= 0 ? toNumber(row[idx.revenue]) * revenueScale : 0;
+    const volume = idx.volume >= 0 ? toNumber(row[idx.volume]) : 0;
+    let margin = idx.margin >= 0 ? toNumber(row[idx.margin]) : 0;
+    const price = idx.price >= 0 ? toNumber(row[idx.price]) : 0;
+    // If margin looks like a percentage (0..100) and we have revenue, convert to € contribution.
+    if (idx.margin >= 0 && margin > 0 && margin <= 100 && revenue > 0) {
+      margin = (margin / 100) * revenue;
+    }
+    const isNew = idx.isNew >= 0 ? toBool(row[idx.isNew]) : false;
+
+    // Colonnes d'audit (facultatives) : lues seulement si la colonne existe.
+    const auditVal = (i: number): number | undefined => (i >= 0 ? toNumber(row[i]) : undefined);
+
+    products.push({
+      id: `p${products.length}`,
+      brand: brand || 'Sans marque',
+      name: name || (ean ? `EAN ${ean}` : `Réf. ${products.length + 1}`),
+      ean: ean || undefined,
+      segment: idx.segment >= 0 ? String(row[idx.segment] ?? '').trim() || 'Général' : 'Général',
+      revenue,
+      volume,
+      margin,
+      price,
+      isNew,
+      currentFacings: auditVal(auditIdx.currentFacings),
+      widthCm: auditVal(auditIdx.widthCm),
+      rotationPerWeek: auditVal(auditIdx.rotation),
+      capacityPerFacing: auditVal(auditIdx.capacity),
+      reapproDays: auditVal(auditIdx.reappro),
+    });
+  }
+
+  // --- R7 : agrégat détecté par le CALCUL (au-delà du libellé) ---
+  // Une ligne dont le CA (ou le volume) ≈ la somme des autres EST un total,
+  // même si elle s'appelle « Ensemble », « Autres » ou porte un nom de marque
+  // ombrelle. On la retire pour ne pas lui donner du linéaire (EX01).
+  for (const key of ['revenue', 'volume'] as const) {
+    for (let pass = 0; pass < 3 && products.length >= 3; pass++) {
+      const sum = products.reduce((a, p) => a + p[key], 0);
+      if (sum <= 0) break;
+      const hit = products.findIndex((p) => p[key] > 0 && Math.abs(p[key] - (sum - p[key])) / (sum - p[key] || 1) < 0.005);
+      if (hit < 0) break;
+      const removed = products.splice(hit, 1)[0];
+      totals++;
+      warnings.push(
+        locale === 'fr'
+          ? `Ligne « ${removed.brand}${removed.name && removed.name !== removed.brand ? ' / ' + removed.name : ''} » exclue : sa valeur égale la somme des autres (agrégat détecté par le calcul).`
+          : `Row “${removed.brand}” excluded: its value equals the sum of the others (aggregate detected by calculation).`
+      );
+    }
+  }
+
+  if (totals > 0) {
+    warnings.push(
+      locale === 'fr'
+        ? `${totals} ligne(s) de total/agrégat ignorée(s) (ex. « Total catégorie »).`
+        : `${totals} total/aggregate row(s) skipped (e.g. “Category total”).`
+    );
+  }
+  if (dropped > 0) {
+    warnings.push(
+      locale === 'fr'
+        ? `${dropped} ligne(s) ignorée(s) : ni marque, ni EAN, ni libellé produit renseignés.`
+        : `${dropped} row(s) skipped: no brand, EAN or product label filled in.`
+    );
+  }
+  // --- Garde-fou anti "résultat faux" (rigueur : refuser plutôt qu'inventer) ---
+  // Mieux vaut un message d'erreur précis qu'un planogramme faux qui a l'air juste.
+  const dataRows = dropped + totals + products.length;
+  const dropRate = dataRows > 0 ? dropped / dataRows : 1;
+  const found = headers.filter(Boolean).map((h) => `« ${h} »`).join(', ');
+
+  // 1) Rapport panel croisé (Circana/Nielsen) sans colonne marque : non lisible à plat.
+  if (!pivoted && looksLikeCrossTabReport(wb) && idx.brand < 0) {
+    throw new Error(
+      locale === 'fr'
+        ? `« ${fileName} » ressemble à un rapport panel croisé (Circana / NielsenIQ) : mesure en colonne, périodes (P6…P13) ou semaines et enseignes en colonnes, produits en hiérarchie avec des lignes de total. CatPilot ne sait pas encore lire ce format de façon fiable — aucun planogramme n'est généré, pour ne pas produire un résultat faux. Exportez un tableau « à plat » (une ligne = un produit ; colonnes Marque, EAN, CA, Volume), ou signalez ce fichier pour la prise en charge du format rapport.`
+        : `“${fileName}” looks like a cross-tab panel report (Circana / NielsenIQ): measure in a column, periods (P6…P13) or weeks and retailers in columns, products in a hierarchy with total rows. CatPilot cannot read this format reliably yet — no planogram is generated, to avoid a wrong result. Export a “flat” table instead (one row per product; Brand, EAN, Sales, Volume columns).`
+    );
+  }
+
+  // 2) Majorité des lignes illisibles, ou aucun moyen d'identifier les produits.
+  if (products.length === 0 || dropRate > 0.6 || (idx.brand < 0 && idx.ean < 0)) {
+    const pct = Math.round(dropRate * 100);
+    throw new Error(
+      locale === 'fr'
+        ? `Lecture non fiable de « ${fileName} » : ${dropped} ligne(s) sur ${dataRows} sans marque, EAN ni libellé exploitable (${pct} %). Ce n'est probablement pas un tableau « un produit par ligne » (feuille de synthèse, en-têtes sur plusieurs lignes, ou export croisé). Colonnes trouvées : ${found || 'aucune'}. Aucun planogramme n'est généré pour éviter un résultat faux : il faut au minimum une colonne marque (ou EAN), et une colonne CA ou volume.`
+        : `Unreliable read of “${fileName}”: ${dropped} of ${dataRows} rows without brand, EAN or usable label (${pct}%). This is likely not a one-product-per-row table. Columns found: ${found || 'none'}. No planogram is generated, to avoid a wrong result: a brand (or EAN) column and a sales or volume column are required.`
+    );
+  }
+
+  return {
+    products,
+    detectedColumns,
+    warnings,
+    ...(wide
+      ? { enseignes: wide.enseignes, enseigne: wide.enseigne, categories: wide.categories, category: wide.category }
+      : flatEnseignes.length
+      ? { enseignes: flatEnseignes, enseigne: flatEnseigne }
+      : {}),
+  };
+}

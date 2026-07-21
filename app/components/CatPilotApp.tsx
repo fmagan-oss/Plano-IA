@@ -1,0 +1,601 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { parseWorkbook, readRawRows, FIELD_LABELS } from '../lib/parse';
+import { generatePlanogram, STRATEGY_TEXT, DEFAULT_FIXTURE } from '../lib/planogram';
+import { SAMPLE_PRODUCTS, SAMPLE_FILENAME } from '../lib/sample';
+import type { BuyerFrame as BuyerFrameData, DeckEdit, Fixture, ParsedDataset, StrategyKey } from '../lib/types';
+import type { BrandKit } from '../lib/brand-kit';
+import { T, useLocale } from '../lib/i18n';
+import { createClient } from '../lib/supabase/client';
+import { exportPptx } from '../lib/pptx-export';
+import PlanogramView from './PlanogramView';
+import PlanDeMasse from './PlanDeMasse';
+import BuyerFrame from './BuyerFrame';
+import Copilot from './Copilot';
+import LinearDiagnostic from './LinearDiagnostic';
+
+const STRATEGY_ORDER: StrategyKey[] = ['balanced', 'rotation', 'margin', 'revenue'];
+
+export default function CatPilotApp({ pro, presentationId = null }: { pro: boolean; presentationId?: string | null }) {
+  const { locale } = useLocale();
+  const t = T[locale].app;
+  const [dataset, setDataset] = useState<ParsedDataset | null>(null);
+  const [fileName, setFileName] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [active, setActive] = useState<StrategyKey>('balanced');
+  const [fixture, setFixture] = useState<Fixture>(DEFAULT_FIXTURE);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [canSave, setCanSave] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [exporting, setExporting] = useState(false);
+  const bufRef = useRef<ArrayBuffer | null>(null);
+  // Multi-fichiers (ex. Circana : un fichier = une enseigne). Chaque source
+  // garde son tampon ; l'enseigne active pointe vers l'un d'eux, ou — pour un
+  // export multi-enseigne (Nielsen « Answers ») — vers une valeur interne.
+  const sourcesRef = useRef<{ name: string; buf: ArrayBuffer }[]>([]);
+  const [sourceNames, setSourceNames] = useState<string[]>([]);
+  const [activeSource, setActiveSource] = useState(0);
+  const [aiMapping, setAiMapping] = useState(false);
+  const [aiNote, setAiNote] = useState<string | null>(null);
+  const [reportNote, setReportNote] = useState<string | null>(null);
+  const [deckEdits, setDeckEdits] = useState<Partial<Record<StrategyKey, DeckEdit>>>({});
+  const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
+
+  const maxVariants = pro ? 4 : 1;
+
+  // "Mes présentations": saving requires a signed-in Supabase user.
+  // The brand kit (colors/logo/name applied to exports) loads alongside.
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+    supabase.auth.getUser().then(async ({ data }) => {
+      setCanSave(!!data.user);
+      if (data.user) {
+        const { data: kit } = await supabase
+          .from('brand_kits')
+          .select('company, logo_data, colors')
+          .eq('user_id', data.user.id)
+          .maybeSingle();
+        if (kit) setBrandKit({ company: kit.company, logoData: kit.logo_data, colors: kit.colors });
+      }
+    });
+  }, []);
+
+  // Reopen a saved presentation (?pres=<id>) — RLS restricts to the owner.
+  useEffect(() => {
+    if (!presentationId) return;
+    const supabase = createClient();
+    if (!supabase) return;
+    supabase
+      .from('presentations')
+      .select('name, payload')
+      .eq('id', presentationId)
+      .single()
+      .then(({ data }) => {
+        const pl = data?.payload as { dataset?: ParsedDataset; fileName?: string; fixture?: Fixture; active?: StrategyKey; deckEdits?: Partial<Record<StrategyKey, DeckEdit>> } | undefined;
+        if (pl?.dataset?.products?.length) {
+          setDataset(pl.dataset);
+          setFileName(pl.fileName || data?.name || '');
+          if (pl.fixture) setFixture(pl.fixture);
+          if (pl.active) setActive(pl.active);
+          setDeckEdits(pl.deckEdits ?? {});
+        }
+      });
+  }, [presentationId]);
+
+  async function savePresentation() {
+    const supabase = createClient();
+    if (!supabase || !dataset) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      window.location.href = '/login';
+      return;
+    }
+    const name = window.prompt(t.savePrompt, fileName || 'CatPilot');
+    if (!name) return;
+    setSaveState('saving');
+    const { error: err } = await supabase.from('presentations').insert({
+      user_id: user.id,
+      name,
+      payload: { fileName, dataset, fixture, active, deckEdits },
+    });
+    setSaveState(err ? 'error' : 'saved');
+    setTimeout(() => setSaveState('idle'), 2500);
+  }
+
+  // Expose the server-derived entitlement for debugging (read-only mirror).
+  useEffect(() => {
+    (window as unknown as { PRO: boolean }).PRO = pro;
+  }, [pro]);
+
+  async function handleFile(file: File) {
+    return handleFiles([file]);
+  }
+
+  // Un ou plusieurs fichiers. Plusieurs = sources (Circana : un fichier = une
+  // enseigne) : on lit la première, les autres sont accessibles par le sélecteur.
+  async function handleFiles(files: File[]) {
+    setError(null);
+    setBusy(true);
+    try {
+      const ok: { name: string; buf: ArrayBuffer }[] = [];
+      for (const file of files) {
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        if (!['xlsx', 'xls', 'csv', 'txt'].includes(ext)) {
+          if (files.length === 1)
+            throw new Error(
+              locale === 'fr'
+                ? `Extension « .${ext} » non prise en charge. Formats acceptés : Excel (.xlsx, .xls) ou CSV.`
+                : `Unsupported “.${ext}” extension. Accepted formats: Excel (.xlsx, .xls) or CSV.`
+            );
+          continue; // en multi-dépôt, on ignore silencieusement les non-tableurs
+        }
+        ok.push({ name: file.name, buf: await file.arrayBuffer() });
+      }
+      if (!ok.length) throw new Error(locale === 'fr' ? 'Aucun fichier Excel/CSV valide.' : 'No valid Excel/CSV file.');
+      sourcesRef.current = ok;
+      setSourceNames(ok.map((s) => s.name));
+      setActiveSource(0);
+      bufRef.current = ok[0].buf;
+      setAiNote(null);
+      setReportNote(null);
+      // parseWorkbook lève des erreurs précises (fichier illisible, feuille
+      // vide, colonnes d'identification absentes…) affichées telles quelles.
+      const parsed = parseWorkbook(ok[0].buf, ok[0].name, locale);
+      setDataset(parsed);
+      setFileName(ok[0].name);
+      setActive('balanced');
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : 'Erreur de lecture.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Change d'enseigne : soit un autre FICHIER source (Circana), soit une autre
+  // valeur INTERNE de la colonne Markets (Nielsen « Answers »). On régénère.
+  function selectEnseigne(value: string) {
+    setError(null);
+    try {
+      const srcIdx = sourceNames.length > 1 ? sourcesRef.current.findIndex((s) => s.name === value) : -1;
+      if (srcIdx >= 0) {
+        bufRef.current = sourcesRef.current[srcIdx].buf;
+        setActiveSource(srcIdx);
+        const parsed = parseWorkbook(bufRef.current, sourcesRef.current[srcIdx].name, locale);
+        setDataset(parsed);
+        setFileName(sourcesRef.current[srcIdx].name);
+      } else if (bufRef.current) {
+        const parsed = parseWorkbook(bufRef.current, fileName, locale, undefined, {
+          enseigne: value,
+          category: dataset?.category ?? undefined,
+        });
+        setDataset(parsed);
+      }
+      setActive('balanced');
+    } catch (e) {
+      // Enseigne non reconstituable proprement : on le dit sans perdre l'écran.
+      setError(e instanceof Error && e.message ? e.message : 'Erreur de lecture.');
+    }
+  }
+
+  function selectCategory(value: string) {
+    if (!bufRef.current) return;
+    setError(null);
+    try {
+      const parsed = parseWorkbook(bufRef.current, fileName, locale, undefined, {
+        enseigne: dataset?.enseigne ?? undefined,
+        category: value,
+      });
+      setDataset(parsed);
+      setActive('balanced');
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : 'Erreur de lecture.');
+    }
+  }
+
+  // Étiquette d'enseigne lisible pour un nom de fichier Circana.
+  function prettyEnseigne(name: string): string {
+    return name
+      .replace(/\.(xlsx|xls|csv|txt)$/i, '')
+      .replace(/^Reporting\s*Circana[_\s-]*/i, '')
+      .replace(/^Geographies?[_\s-]*/i, '')
+      .replace(/\bCensus\b/i, '')
+      .replace(/[_]+/g, ' ')
+      .trim() || name;
+  }
+
+  function loadSample() {
+    setError(null);
+    bufRef.current = null;
+    sourcesRef.current = [];
+    setSourceNames([]);
+    setActiveSource(0);
+    setAiNote(null);
+    setReportNote(null);
+    setDataset({
+      products: SAMPLE_PRODUCTS,
+      detectedColumns: {
+        brand: 'Marque',
+        ean: 'EAN',
+        name: 'Produit',
+        segment: 'Segment',
+        revenue: 'CA (€)',
+        volume: 'Volume',
+        margin: 'Marge (€)',
+        price: 'Prix',
+        isNew: 'Nouveauté',
+      },
+      warnings: [],
+    });
+    setFileName(SAMPLE_FILENAME);
+    setActive('balanced');
+  }
+
+  const products = dataset?.products ?? [];
+
+  const activeLocked = STRATEGY_ORDER.indexOf(active) >= maxVariants;
+
+  const plano = useMemo(() => {
+    if (!products.length) return null;
+    return generatePlanogram(products, active, fixture, locale);
+  }, [products, active, fixture, locale]);
+
+  // Trame effective = trame générée + retouches utilisateur de la variante.
+  const effFrame: BuyerFrameData | null = useMemo(() => {
+    if (!plano) return null;
+    const e = deckEdits[active];
+    if (!e) return plano.buyerFrame;
+    return {
+      headline: e.headline ?? plano.buyerFrame.headline,
+      categorySummary: e.categorySummary ?? plano.buyerFrame.categorySummary,
+      keyMoves: e.keyMoves ?? plano.buyerFrame.keyMoves,
+      noveltyPitch: e.noveltyPitch ?? plano.buyerFrame.noveltyPitch,
+      expectedImpact: e.expectedImpact ?? plano.buyerFrame.expectedImpact,
+    };
+  }, [plano, deckEdits, active]);
+
+  // Key fields still missing after heuristic detection → offer the AI net.
+  const hasGaps = !!dataset && (
+    (!dataset.detectedColumns.ean && !dataset.detectedColumns.name) ||
+    !dataset.detectedColumns.brand ||
+    (!dataset.detectedColumns.revenue && !dataset.detectedColumns.volume)
+  );
+  const showAiNet = !!bufRef.current && (!!error || hasGaps);
+  const showReport = !!bufRef.current && canSave && (!!error || !!dataset);
+
+  async function aiMapColumns() {
+    if (!bufRef.current) return;
+    setAiMapping(true);
+    setAiNote(null);
+    try {
+      const raw = readRawRows(bufRef.current);
+      const res = await fetch('/api/map-columns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(raw),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAiNote(data.error || 'Erreur.');
+        return;
+      }
+      const parsed = parseWorkbook(bufRef.current, fileName, locale, data.mapping);
+      setDataset(parsed);
+      setError(null);
+      setActive('balanced');
+      setAiNote(t.aiApplied);
+    } catch (e) {
+      setAiNote(e instanceof Error && e.message ? e.message : 'Erreur.');
+    } finally {
+      setAiMapping(false);
+    }
+  }
+
+  async function reportBadRead() {
+    const supabase = createClient();
+    if (!supabase || !bufRef.current) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) { window.location.href = '/login'; return; }
+    const comment = window.prompt(t.reportPrompt, '');
+    if (comment === null) return;
+    const raw = readRawRows(bufRef.current);
+    const { error: err } = await supabase.from('parse_reports').insert({
+      user_id: user.id,
+      file_name: fileName || null,
+      headers: raw.headers,
+      sample: raw.sample,
+      detected: dataset?.detectedColumns ?? null,
+      comment: comment || null,
+    });
+    setReportNote(err ? t.reportFail : t.reportThanks);
+    setTimeout(() => setReportNote(null), 4000);
+  }
+
+  async function doExportPptx() {
+    if (!plano) return;
+    setExporting(true);
+    try {
+      await exportPptx({
+        plano,
+        products,
+        fileName,
+        strategyLabel: STRATEGY_TEXT[locale][active].label,
+        fixture,
+        locale,
+        frame: effFrame ?? undefined,
+        kit: brandKit,
+      });
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div className="app">
+      <div className="app-head">
+        <div>
+          <h1>{t.title}</h1>
+          <p className="muted">{t.sub}</p>
+        </div>
+        <span className={`plan-badge ${pro ? 'is-pro' : 'is-free'}`}>{pro ? t.pro : t.demo}</span>
+      </div>
+
+      {!dataset && (
+        <Uploader
+          busy={busy}
+          onPick={() => inputRef.current?.click()}
+          onFile={handleFile}
+          onFiles={handleFiles}
+          onSample={loadSample}
+        />
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        multiple
+        hidden
+        onChange={(e) => {
+          const fs = Array.from(e.target.files ?? []);
+          if (fs.length) handleFiles(fs);
+          e.target.value = '';
+        }}
+      />
+
+      {error && <div className="alert alert-error">{error}</div>}
+
+      {(showAiNet || showReport || aiNote || reportNote) && (
+        <div className="fixnet">
+          {showAiNet && (
+            <button className="btn btn-primary" onClick={aiMapColumns} disabled={aiMapping}>
+              {aiMapping ? t.aiMapping : t.aiMapBtn}
+            </button>
+          )}
+          {showReport && (
+            <button className="btn btn-ghost" onClick={reportBadRead}>
+              {t.reportBtn}
+            </button>
+          )}
+          {aiNote && <span className="fixnet-note">{aiNote}</span>}
+          {reportNote && <span className="fixnet-note">{reportNote}</span>}
+        </div>
+      )}
+
+      {dataset && (
+        <>
+          <div className="dataset-bar">
+            <div className="dataset-info">
+              <strong>{fileName}</strong>
+              <span className="muted">
+                {t.dsRefs(products.length, new Set(products.map((p) => p.brand)).size, products.filter((p) => p.isNew).length)}
+              </span>
+            </div>
+            <div className="dataset-actions">
+              {(() => {
+                const multiSource = sourceNames.length > 1;
+                const enseigneOpts = multiSource ? sourceNames : dataset.enseignes ?? [];
+                const enseigneVal = multiSource ? sourceNames[activeSource] : dataset.enseigne ?? '';
+                const showEnseigne = enseigneOpts.length > 1;
+                const showCat = (dataset.categories?.length ?? 0) > 1;
+                if (!showEnseigne && !showCat) return null;
+                const lbl = locale === 'fr' ? { e: 'Enseigne', c: 'Catégorie' } : { e: 'Retailer', c: 'Category' };
+                return (
+                  <div className="scope-controls">
+                    {showEnseigne && (
+                      <label>
+                        {lbl.e}
+                        <select value={enseigneVal} onChange={(e) => selectEnseigne(e.target.value)}>
+                          {enseigneOpts.map((o) => (
+                            <option key={o} value={o}>{multiSource ? prettyEnseigne(o) : o}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    {showCat && (
+                      <label>
+                        {lbl.c}
+                        <select value={dataset.category ?? ''} onChange={(e) => selectCategory(e.target.value)}>
+                          {(dataset.categories ?? []).map((o) => (
+                            <option key={o} value={o}>{o}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                );
+              })()}
+              <div className="fixture-controls">
+                <label>
+                  {t.shelves}
+                  <select
+                    value={fixture.shelves}
+                    onChange={(e) => setFixture({ ...fixture, shelves: Number(e.target.value) })}
+                  >
+                    {[3, 4, 5, 6, 7].map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {t.facingsPerShelf}
+                  <select
+                    value={fixture.facingsPerShelf}
+                    onChange={(e) => setFixture({ ...fixture, facingsPerShelf: Number(e.target.value) })}
+                  >
+                    {[8, 10, 12, 14, 16, 20].map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {pro && plano && !activeLocked && (
+                <>
+                  <button className="btn btn-ghost" onClick={doExportPptx} disabled={exporting}>
+                    {exporting ? t.exporting : t.exportPptx}
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => window.print()}>
+                    {t.exportPdf}
+                  </button>
+                </>
+              )}
+              {canSave && (
+                <button className="btn btn-primary" onClick={savePresentation} disabled={saveState === 'saving'}>
+                  {saveState === 'saving' ? t.saving : saveState === 'saved' ? t.savedOk : saveState === 'error' ? t.saveError : t.save}
+                </button>
+              )}
+              <button className="btn btn-ghost" onClick={() => inputRef.current?.click()}>
+                {t.changeFile}
+              </button>
+            </div>
+          </div>
+
+          {dataset.warnings.length > 0 && (
+            <div className="alert alert-warn">
+              {dataset.warnings.map((w, i) => (
+                <div key={i}>⚠ {w}</div>
+              ))}
+            </div>
+          )}
+
+          <details className="mapping">
+            <summary>{t.mapping}</summary>
+            <ul className="mapping-list">
+              {Object.entries(FIELD_LABELS[locale]).map(([field, label]) => {
+                const header = dataset.detectedColumns[field];
+                return (
+                  <li key={field} className={header ? '' : 'is-missing'}>
+                    <span className="mapping-field">{label}</span>
+                    <span className="mapping-header">{header ? `« ${header} »` : t.notDetected}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+
+          {/* Variant tabs */}
+          <div className="variants">
+            {STRATEGY_ORDER.map((key, i) => {
+              const s = STRATEGY_TEXT[locale][key];
+              const locked = i >= maxVariants;
+              return (
+                <button
+                  key={key}
+                  className={`variant-tab ${active === key ? 'active' : ''} ${locked ? 'locked' : ''}`}
+                  onClick={() => setActive(key)}
+                >
+                  {s.label}
+                  {locked && <span className="lock-mini">🔒</span>}
+                </button>
+              );
+            })}
+          </div>
+          <p className="variant-desc">{STRATEGY_TEXT[locale][active].description}</p>
+
+          {activeLocked ? (
+            <div className="variant-lock">
+              <div className="overlay-card">
+                <h4>{t.lockTitle}</h4>
+                <p>{t.lockText}</p>
+                <Link href="/compte" className="btn btn-primary">{t.lockCta}</Link>
+              </div>
+            </div>
+          ) : (
+            plano && (
+              <div className="results">
+                <div className="results-grid">
+                  <PlanDeMasse plano={plano} />
+                  <Copilot products={products} pro={pro} />
+                </div>
+                <PlanogramView plano={plano} />
+                <LinearDiagnostic plano={plano} products={products} />
+                {effFrame && (
+                  <BuyerFrame
+                    frame={effFrame}
+                    locked={!pro}
+                    editable={pro}
+                    onSaveEdits={(e) => setDeckEdits((prev) => ({ ...prev, [active]: e }))}
+                  />
+                )}
+              </div>
+            )
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function Uploader({
+  busy,
+  onPick,
+  onFile,
+  onFiles,
+  onSample,
+}: {
+  busy: boolean;
+  onPick: () => void;
+  onFile: (f: File) => void;
+  onFiles: (f: File[]) => void;
+  onSample: () => void;
+}) {
+  const { locale } = useLocale();
+  const t = T[locale].app;
+  const [drag, setDrag] = useState(false);
+  return (
+    <div
+      className={`uploader ${drag ? 'drag' : ''}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDrag(true);
+      }}
+      onDragLeave={() => setDrag(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDrag(false);
+        const fs = Array.from(e.dataTransfer.files ?? []);
+        if (fs.length) onFiles(fs);
+      }}
+    >
+      <div className="uploader-icon" aria-hidden>⬆</div>
+      <h2>{t.upTitle}</h2>
+      <p className="muted">{t.upText}</p>
+      <div className="uploader-actions">
+        <button className="btn btn-primary" onClick={onPick} disabled={busy}>
+          {busy ? t.upBusy : t.upBtn}
+        </button>
+        <button className="btn btn-ghost" onClick={onSample} disabled={busy}>
+          {t.upSample}
+        </button>
+      </div>
+      <p className="uploader-formats">{t.upFormats}</p>
+    </div>
+  );
+}

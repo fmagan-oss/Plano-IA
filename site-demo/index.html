@@ -1,0 +1,411 @@
+<title>CatPilot — Category management automatisé</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --surface:#fff; --surface-2:#f1f3f9; --border:#e3e7f0;
+    --text:#0f172a; --text-2:#475569; --muted:#64748b;
+    --primary:#2b3ff5; --primary-600:#1f2fd6; --primary-050:#eef0ff;
+    --navy:#10163a; --accent:#db2777; --ok:#15803d; --err:#b91c1c; --warn:#b45309;
+    --radius:14px; --radius-sm:9px;
+    --shadow-sm:0 1px 2px rgba(15,23,42,.06),0 1px 3px rgba(15,23,42,.05);
+    --shadow:0 6px 24px rgba(15,23,42,.08); --shadow-lg:0 20px 50px rgba(15,23,42,.14);
+    --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{--bg:#0b1020;--surface:#131a33;--surface-2:#1b2445;--border:#29334f;--text:#e9edf8;--text-2:#adb7d2;--muted:#8592b3;--primary:#6a79ff;--primary-600:#8792ff;--primary-050:#1b2350;--navy:#0b1020;--accent:#f472b6;--ok:#4ade80;--err:#f87171;--warn:#fbbf24;--shadow-sm:0 1px 2px rgba(0,0,0,.4);--shadow:0 6px 24px rgba(0,0,0,.45);--shadow-lg:0 20px 50px rgba(0,0,0,.55);}}
+  :root[data-theme="dark"]{--bg:#0b1020;--surface:#131a33;--surface-2:#1b2445;--border:#29334f;--text:#e9edf8;--text-2:#adb7d2;--muted:#8592b3;--primary:#6a79ff;--primary-600:#8792ff;--primary-050:#1b2350;--navy:#0b1020;--accent:#f472b6;--ok:#4ade80;--err:#f87171;--warn:#fbbf24;--shadow-sm:0 1px 2px rgba(0,0,0,.4);--shadow:0 6px 24px rgba(0,0,0,.45);--shadow-lg:0 20px 50px rgba(0,0,0,.55);}
+  :root[data-theme="light"]{--bg:#f6f7fb;--surface:#fff;--surface-2:#f1f3f9;--border:#e3e7f0;--text:#0f172a;--text-2:#475569;--muted:#64748b;--primary:#2b3ff5;--primary-600:#1f2fd6;--primary-050:#eef0ff;--navy:#10163a;--accent:#db2777;--ok:#15803d;--err:#b91c1c;--warn:#b45309;--shadow-sm:0 1px 2px rgba(15,23,42,.06),0 1px 3px rgba(15,23,42,.05);--shadow:0 6px 24px rgba(15,23,42,.08);--shadow-lg:0 20px 50px rgba(15,23,42,.14);}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;line-height:1.5;}
+  h1,h2,h3,h4{margin:0;line-height:1.14;letter-spacing:-.02em;text-wrap:balance;}
+  p{margin:0;} a{color:inherit;text-decoration:none;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 1.25rem;}
+  .muted{color:var(--muted);}
+
+  /* header */
+  header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);}
+  .nav{display:flex;align-items:center;gap:1rem;height:60px;}
+  .brand{display:flex;align-items:center;gap:.6rem;font-weight:800;font-size:1.12rem;letter-spacing:-.02em;cursor:pointer;}
+  .mark{width:30px;height:30px;flex:0 0 auto;}
+  .nav-links{display:flex;gap:.3rem;margin-left:1rem;}
+  .nav-links a{font-size:.92rem;font-weight:600;color:var(--text-2);padding:.45rem .7rem;border-radius:8px;cursor:pointer;}
+  .nav-links a:hover{background:var(--surface-2);color:var(--text);}
+  .nav-links a.on{color:var(--primary);background:var(--primary-050);}
+  .nav-right{margin-left:auto;display:flex;gap:.5rem;align-items:center;}
+  @media(max-width:720px){.nav-links{display:none;}}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border:1px solid transparent;border-radius:var(--radius-sm);padding:.6rem 1.1rem;font-size:.93rem;font-weight:600;cursor:pointer;font-family:inherit;background:var(--surface-2);color:var(--text);transition:transform .05s;}
+  .btn:hover{transform:translateY(-1px);}
+  .btn-primary{background:var(--primary);color:#fff;box-shadow:var(--shadow-sm);}
+  .btn-primary:hover{background:var(--primary-600);}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text-2);}
+  .btn-sm{padding:.42rem .8rem;font-size:.86rem;}
+
+  section[data-page]{padding:2.4rem 0 3rem;}
+  .eyebrow{font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--primary);}
+  .pill{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:.28rem .6rem;border-radius:999px;border:1px solid var(--border);color:var(--text-2);background:var(--surface);}
+
+  /* hero */
+  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:2.4rem;align-items:center;}
+  @media(max-width:820px){.hero{grid-template-columns:1fr;}.hero-vis{order:-1;}}
+  .hero h1{font-size:2.5rem;margin-top:.5rem;}
+  @media(max-width:820px){.hero h1{font-size:2rem;}}
+  .hero p.sub{color:var(--text-2);font-size:1.08rem;margin-top:.9rem;max-width:46ch;}
+  .hero-cta{display:flex;gap:.7rem;margin-top:1.5rem;flex-wrap:wrap;}
+  .trust{margin-top:1.4rem;font-size:.82rem;color:var(--muted);}
+
+  /* planogramme AU FACING (vitrine) — fenêtre app, blocs marque en descentes alignées */
+  .fplano{width:100%;max-width:460px;margin-left:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-lg);overflow:hidden;}
+  .fplano-bar{display:flex;align-items:center;gap:.5rem;padding:.55rem .9rem;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:.75rem;font-weight:600;color:var(--text-2);}
+  .fplano-dot{width:9px;height:9px;border-radius:50%;background:var(--border);flex:0 0 auto;}
+  .fplano-body{display:flex;flex-direction:column;gap:.5rem;padding:.9rem;}
+  .fshelf{display:flex;gap:7px;border-bottom:2px solid var(--border);padding-bottom:.5rem;}
+  .fblock{display:flex;gap:3px;flex-basis:0;}
+  .fcell{flex:1 1 0;height:26px;border-radius:3px;opacity:.9;}
+
+  /* generic cards / grids */
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.5rem;}
+  @media(max-width:820px){.cards{grid-template-columns:1fr;}}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:1.3rem 1.4rem;}
+  .card + .card{margin-top:1.5rem;}
+  .cards .card + .card,.acc-grid .card + .card{margin-top:0;}
+  .card h3{font-size:1.05rem;}
+  .card .ic{width:38px;height:38px;border-radius:10px;background:var(--primary-050);color:var(--primary);display:grid;place-items:center;font-size:1.1rem;margin-bottom:.7rem;font-weight:800;}
+  .card p{color:var(--text-2);font-size:.92rem;margin-top:.3rem;}
+  .sec-head{max-width:56ch;}
+  .sec-head h2{font-size:1.7rem;margin-top:.4rem;}
+  .sec-head p{color:var(--text-2);margin-top:.5rem;}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.5rem;counter-reset:s;}
+  @media(max-width:820px){.steps{grid-template-columns:1fr;}}
+  .step{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem 1.3rem;}
+  .step .n{width:28px;height:28px;border-radius:8px;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:800;font-size:.85rem;margin-bottom:.6rem;}
+  .step h4{font-size:1rem;} .step p{color:var(--text-2);font-size:.9rem;margin-top:.3rem;}
+
+  .band{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.6rem;margin-top:2.4rem;display:flex;align-items:center;justify-content:space-between;gap:1.2rem;flex-wrap:wrap;box-shadow:var(--shadow-sm);}
+  .band h3{font-size:1.25rem;}
+
+  /* app module */
+  .controls{display:flex;flex-wrap:wrap;gap:1.2rem;align-items:flex-end;margin:1.3rem 0 1.1rem;}
+  .set{display:flex;flex-direction:column;gap:.3rem;}
+  .set label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);}
+  select{appearance:none;-webkit-appearance:none;font-family:inherit;font-size:.92rem;font-weight:600;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.55rem 2.1rem .55rem .7rem;cursor:pointer;box-shadow:var(--shadow-sm);background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 1rem) 55%,calc(100% - .68rem) 55%;background-size:6px 6px,6px 6px;background-repeat:no-repeat;}
+  select:focus-visible,.seg button:focus-visible,a:focus-visible,.btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+  .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px;gap:2px;flex-wrap:wrap;}
+  .seg button{border:none;background:transparent;color:var(--text-2);font-family:inherit;font-size:.85rem;font-weight:600;padding:.4rem .7rem;border-radius:7px;cursor:pointer;}
+  .seg button.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm);}
+  .card-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.9rem;}
+  .card-head h2{font-size:1.1rem;} .card-head .ctx{font-size:.85rem;color:var(--text-2);} .card-head .ctx b{color:var(--text);}
+  .tbl-scroll{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:.9rem;font-variant-numeric:tabular-nums;}
+  th,td{text-align:right;padding:.5rem .55rem;border-bottom:1px solid var(--border);white-space:nowrap;}
+  th:first-child,td:first-child{text-align:left;}
+  thead th{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;}
+  tbody td:first-child{font-weight:600;} tbody tr:hover td{background:var(--surface-2);}
+  .colhead{display:inline-flex;align-items:center;gap:.4rem;} .tsw{width:9px;height:9px;border-radius:2px;display:inline-block;}
+  .totcol{font-weight:700;} .share{color:var(--text-2);}
+  .evol{font-weight:700;} .up{color:var(--ok);} .down{color:var(--err);}
+  tfoot td{border-top:2px solid var(--border);border-bottom:none;font-weight:800;padding-top:.6rem;}
+  tfoot td:first-child{text-transform:uppercase;font-size:.78rem;letter-spacing:.04em;color:var(--muted);}
+  .bar{display:flex;height:42px;border-radius:9px;overflow:hidden;border:1px solid var(--border);margin-top:.3rem;}
+  .seg-b{display:grid;place-items:center;font-size:.82rem;font-weight:700;color:#fff;min-width:0;overflow:hidden;white-space:nowrap;line-height:1.1;}
+  .seg-b small{font-weight:600;opacity:.9;font-size:.68rem;}
+  .legend{display:flex;flex-wrap:wrap;gap:.5rem 1.1rem;margin-top:.7rem;font-size:.82rem;color:var(--text-2);}
+  .legend span{display:inline-flex;align-items:center;gap:.4rem;} .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;}
+  .legend b.up{color:var(--ok);} .legend b.down{color:var(--err);}
+  .ecart{margin-top:1.15rem;padding-top:1rem;border-top:1px solid var(--border);}
+  .ecart .lab{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);}
+  table.mini2{margin-top:.5rem;font-size:.88rem;}
+  table.mini2 td.over{color:var(--accent);font-weight:700;} table.mini2 td.under{color:var(--primary);font-weight:700;} table.mini2 td.neutral{color:var(--muted);font-weight:600;}
+  .hint{font-size:.8rem;color:var(--muted);margin-top:.5rem;}
+  .trame ul{margin:.2rem 0 0;padding-left:1.1rem;color:var(--text-2);font-size:.92rem;} .trame li{margin:.35rem 0;} .trame li b{color:var(--text);}
+  .app-actions{display:flex;gap:.65rem;flex-wrap:wrap;margin-top:1.2rem;align-items:center;}
+
+  /* pricing */
+  .prices{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.6rem;align-items:start;}
+  @media(max-width:820px){.prices{grid-template-columns:1fr;}}
+  .price{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem 1.5rem;box-shadow:var(--shadow-sm);}
+  .price.feat{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary),var(--shadow);}
+  .price h3{font-size:1.2rem;} .price .amt{font-size:2rem;font-weight:800;margin:.5rem 0 .1rem;}
+  .price .amt small{font-size:.85rem;font-weight:500;color:var(--muted);}
+  .price ul{list-style:none;padding:0;margin:1rem 0 1.2rem;display:flex;flex-direction:column;gap:.5rem;}
+  .price li{font-size:.9rem;color:var(--text-2);display:flex;gap:.5rem;} .price li::before{content:"✓";color:var(--ok);font-weight:800;}
+  .price .tagline{font-size:.85rem;color:var(--muted);min-height:2.4em;}
+
+  /* account */
+  .acc-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1.4rem;}
+  @media(max-width:820px){.acc-grid{grid-template-columns:1fr;}}
+  .dl{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin:0;}
+  .dl dt{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);} .dl dd{margin:.15rem 0 0;font-weight:600;}
+  .plan-badge{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:.25rem .6rem;border-radius:999px;background:var(--primary-050);color:var(--primary);}
+  .list{list-style:none;padding:0;margin:.8rem 0 0;display:flex;flex-direction:column;gap:.5rem;}
+  .list li{display:flex;align-items:center;justify-content:space-between;gap:.8rem;border:1px solid var(--border);border-radius:var(--radius-sm);padding:.55rem .85rem;font-size:.9rem;}
+  .swatchbox{display:flex;gap:.4rem;margin-top:.6rem;} .swatchbox i{width:26px;height:26px;border-radius:6px;border:1px solid var(--border);}
+
+  /* login */
+  .login{max-width:400px;margin:2rem auto;text-align:center;}
+  .login .card{padding:1.8rem;}
+  .field{display:flex;flex-direction:column;gap:.4rem;text-align:left;margin:1rem 0;}
+  .field label{font-size:.78rem;font-weight:700;color:var(--text-2);}
+  .field input{border:1px solid var(--border);border-radius:var(--radius-sm);padding:.6rem .75rem;font-size:.95rem;font-family:inherit;background:var(--surface);color:var(--text);}
+
+  footer{border-top:1px solid var(--border);margin-top:2rem;}
+  .foot{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:1.5rem 0;color:var(--muted);font-size:.85rem;}
+  .demo-note{background:var(--primary-050);border:1px solid color-mix(in srgb,var(--primary) 25%,transparent);color:var(--text-2);border-radius:var(--radius-sm);padding:.6rem .9rem;font-size:.83rem;margin-top:1rem;}
+  .demo-note b{color:var(--text);}
+</style>
+
+<header>
+  <div class="wrap nav">
+    <div class="brand" data-go="accueil">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--navy)"/><rect x="6.5" y="17" width="4.6" height="8.5" rx="1.5" fill="#2b3ff5"/><rect x="13.7" y="12" width="4.6" height="13.5" rx="1.5" fill="#db2777"/><rect x="20.9" y="7.5" width="4.6" height="18" rx="1.5" fill="#0891b2"/></svg>
+      CatPilot
+    </div>
+    <nav class="nav-links">
+      <a data-nav="accueil" data-go="accueil">Accueil</a>
+      <a data-nav="app" data-go="app">Application</a>
+      <a data-nav="tarifs" data-go="tarifs">Tarifs</a>
+      <a data-nav="compte" data-go="compte">Mon compte</a>
+    </nav>
+    <div class="nav-right">
+      <a class="btn btn-ghost btn-sm" data-go="login">Connexion</a>
+      <a class="btn btn-primary btn-sm" data-go="app">Tester la démo</a>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ============ ACCUEIL ============ -->
+<section data-page="accueil"><div class="wrap">
+  <div class="hero">
+    <div>
+      <span class="eyebrow">Category management assisté</span>
+      <h1>De la donnée panel à la <span style="color:var(--primary)">reco catégorielle</span>, prête pour le rendez-vous acheteur.</h1>
+      <p class="sub">CatPilot lit vos exports Nielsen / Circana et produit vos trois livrables : le plan de masse, le planogramme au facing et la présentation acheteur à votre charte. Blocs par marque, détection des nouveautés, 4 variantes stratégiques.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" data-go="app">Tester avec le jeu d'exemple</a>
+        <a class="btn btn-ghost" data-go="tarifs">Voir les tarifs</a>
+      </div>
+      <p class="trust">Aucune installation. Importez un Excel/CSV, ou testez avec le jeu d'exemple.</p>
+    </div>
+    <div class="hero-vis">
+      <div class="fplano">
+        <div class="fplano-bar"><span class="fplano-dot"></span><span class="fplano-dot"></span><span class="fplano-dot"></span><span>Planogramme — Rayon Énergisants</span></div>
+        <div class="fplano-body" id="heroPlano"></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:3rem;" class="sec-head">
+    <span class="eyebrow">Comment ça marche</span>
+    <h2>Le workflow d'un category manager, automatisé.</h2>
+  </div>
+  <div class="steps">
+    <div class="step"><div class="n">1</div><h4>Importez votre fichier panel</h4><p>Excel ou CSV, export Nielsen / Circana. Les colonnes métier sont reconnues automatiquement.</p></div>
+    <div class="step"><div class="n">2</div><h4>Choisissez une stratégie</h4><p>Équilibré, Rotation, Marge ou CA. Chaque variante réalloue le facing selon votre objectif.</p></div>
+    <div class="step"><div class="n">3</div><h4>Présentez vos recos</h4><p>Plan de masse, planogramme au facing et trame acheteur — prêts pour le rendez-vous enseigne.</p></div>
+  </div>
+
+  <div style="margin-top:3rem;" class="sec-head">
+    <span class="eyebrow">Ce que vous obtenez</span>
+    <h2>Trois livrables prêts à présenter, à partir d'un seul fichier.</h2>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="ic">▤</div><h3>1 · Plan de masse</h3><p>Répartition du linéaire par marque et par segment, avec l'écart part de marché / part de linéaire.</p></div>
+    <div class="card"><div class="ic">▦</div><h3>2 · Planogramme au facing</h3><p>Placement rayon par niveaux, blocs marques homogènes, nouveautés remontées au niveau des yeux.</p></div>
+    <div class="card"><div class="ic">✎</div><h3>3 · Présentation acheteur</h3><p>Trame structurée — synthèse catégorie, moves clés, impact attendu — exportée en PowerPoint à votre charte de marque.</p></div>
+  </div>
+
+  <div class="band">
+    <div><h3>Découvrez CatPilot sur un jeu d'exemple.</h3><p class="muted">Chargez la catégorie d'exemple et parcourez les trois livrables.</p></div>
+    <a class="btn btn-primary" data-go="app">Ouvrir l'application</a>
+  </div>
+</div></section>
+
+<!-- ============ APPLICATION ============ -->
+<section data-page="app" hidden><div class="wrap">
+  <span class="eyebrow">Application · démo</span>
+  <h1 style="font-size:1.7rem;margin-top:.35rem;">Votre catégorie, prête à présenter.</h1>
+  <p class="muted" style="margin-top:.4rem;max-width:64ch;">Catégorie d'exemple, lue automatiquement. Choisissez d'abord <b>l'enseigne</b> et <b>la catégorie</b> — d'une enseigne à l'autre, tout diffère —, puis ajustez la mesure, la période et l'angle stratégique : tout se recalcule.</p>
+
+  <div class="controls">
+    <div class="set"><label for="selGeo">Enseigne</label><select id="selGeo"><option value="TOT" selected>Total HYPERS+SUPERS</option><option value="HYP">HYPERS</option><option value="CAR">Carrefour + Drive</option><option value="AUC">Auchan Intégré</option></select></div>
+    <div class="set"><label for="selCat">Catégorie</label><select id="selCat"><option value="cafe" selected>Café</option><option value="x" disabled>Vos autres catégories… (selon le fichier)</option></select></div>
+    <div class="set"><label for="selCA">Mesure</label><select id="selCA"><option value="val" selected>Ventes Valeur (Eur)</option><option value="uni">Ventes Unité</option></select></div>
+    <div class="set"><label for="selPer">Période</label><select id="selPer"><option value="P2" selected>P2 · 27-01 → 23-02-2025</option><option value="P1">P1 · 30-12 → 26-01-2025</option><option value="P13">P13 · 02-12 → 29-12-2024</option><option value="CAM">Cumul annuel mobile</option></select></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Ta catégorie, par marque × type</h2><span class="ctx"><b id="ctxGeo">Total HYPERS+SUPERS</b> · <b id="ctxPer">P2</b> · vs N-1</span></div>
+    <div class="tbl-scroll"><table>
+      <thead><tr><th>Marque</th>
+        <th><span class="colhead"><i class="tsw" style="background:#2b3ff5"></i>Moulu</span></th>
+        <th><span class="colhead"><i class="tsw" style="background:#db2777"></i>Grain</span></th>
+        <th><span class="colhead"><i class="tsw" style="background:#0891b2"></i>Capsules</span></th>
+        <th id="thTot">Total</th><th>Part</th><th>Évol N-1</th></tr></thead>
+      <tbody id="matrix"></tbody><tfoot id="totrow"></tfoot>
+    </table></div>
+    <p class="hint">Évol N-1 = dynamique vs l'an dernier. Le total est affiché à titre de contrôle — il n'entre pas dans le plan de masse.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Plan de masse par type de produit</h2>
+      <div class="seg" id="strat" role="group" aria-label="Angle stratégique">
+        <button data-s="ca" class="on">Chiffre d'affaires</button><button data-s="rot">Rotation</button><button data-s="marge">Marge</button><button data-s="eq">Équilibré</button>
+      </div>
+    </div>
+    <div class="bar" id="bar"></div>
+    <div class="legend" id="legend"></div>
+    <div class="ecart">
+      <span class="lab">Linéaire vs volume — lecture rotation</span>
+      <div class="tbl-scroll"><table class="mini2"><thead><tr><th>Type</th><th>% linéaire</th><th>% volume</th><th>Écart</th></tr></thead><tbody id="ecart"></tbody></table></div>
+      <p class="hint">Écart = part de linéaire − part de volume. Positif = sur-facé (linéaire au-delà du débit) ; négatif = sous-facé, forte rotation à alimenter. En angle « Rotation », l'écart tend vers zéro.</p>
+    </div>
+  </div>
+
+  <div class="card trame">
+    <div class="card-head"><h2>Trame acheteur</h2><span class="ctx">générée depuis les chiffres</span></div>
+    <ul id="trame"></ul>
+    <div class="app-actions">
+      <a class="btn btn-primary" data-go="compte">Enregistrer & exporter</a>
+      <button class="btn btn-ghost" type="button" onclick="alert('Démo : dans l’app, export .pptx à ta charte de marque.')">Exporter en PowerPoint</button>
+    </div>
+  </div>
+  <div class="demo-note"><b>Démo côté navigateur</b> — données café fictives. Dans l'app connectée, vous chargez votre propre fichier : CatPilot lit les exports <b>Circana</b> (croisé) et <b>NielsenIQ</b> (long et large « Answers »), repère la période de référence, écarte l'année précédente et la promo seule, et lit <b>une enseigne et une catégorie à la fois</b> — la liste des enseignes et catégories vient de votre fichier.</div>
+</div></section>
+
+<!-- ============ TARIFS ============ -->
+<section data-page="tarifs" hidden><div class="wrap">
+  <span class="eyebrow">Tarifs</span>
+  <h1 style="font-size:1.9rem;margin-top:.35rem;">Un siège par personne. Facturation B2B, HT.</h1>
+  <p class="muted" style="margin-top:.5rem;max-width:56ch;">Chaque membre se connecte avec sa propre adresse — pas de compte partagé. Montants indicatifs, à valider.</p>
+  <div class="prices">
+    <div class="price"><h3>Découverte</h3><div class="amt">0 €</div><p class="tagline">Pour tester le modèle sur tes fichiers.</p>
+      <ul><li>1 variante stratégique</li><li>Lecture de tes fichiers</li><li>Plan de masse par type</li></ul>
+      <a class="btn btn-ghost" data-go="app" style="width:100%;">Essayer</a></div>
+    <div class="price feat"><span class="pill" style="color:var(--primary);border-color:var(--primary);">Le plus choisi</span><h3 style="margin-top:.5rem;">Pro</h3><div class="amt">149 €<small> HT/siège/mois</small></div><p class="tagline">Ou 1 490 € HT/an par siège.</p>
+      <ul><li>Les 4 angles stratégiques</li><li>Trame acheteur éditable</li><li>Export PowerPoint à ta charte</li><li>Copilote IA & Mes présentations</li><li>Sièges nominatifs</li></ul>
+      <a class="btn btn-primary" data-go="login" style="width:100%;">Passer en Pro</a></div>
+    <div class="price"><h3>Entreprise</h3><div class="amt">Sur devis</div><p class="tagline">Volume de sièges, virement, SSO.</p>
+      <ul><li>Tout Pro</li><li>Facturation par virement</li><li>Accompagnement onboarding</li></ul>
+      <a class="btn btn-ghost" href="#" onclick="return false;" style="width:100%;">Demander un devis</a></div>
+  </div>
+  <div class="demo-note"><b>Note franche :</b> ces montants sont des hypothèses de départ à confronter à tes prospects, pas des prix arrêtés.</div>
+</div></section>
+
+<!-- ============ MON COMPTE ============ -->
+<section data-page="compte" hidden><div class="wrap">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+    <h1 style="font-size:1.7rem;">Mon compte</h1><span class="plan-badge">Pro · 5 sièges</span>
+  </div>
+  <div class="acc-grid">
+    <div class="card"><h3>Abonnement</h3>
+      <dl class="dl" style="margin-top:.8rem;"><div><dt>E-mail</dt><dd>fmagan@orange.fr</dd></div><div><dt>Formule</dt><dd>Pro — 5 sièges</dd></div><div><dt>Statut</dt><dd>Actif</dd></div><div><dt>Renouvellement</dt><dd>20/08/2026</dd></div></dl>
+      <div class="app-actions"><button class="btn btn-ghost btn-sm" onclick="alert('Démo : portail Stripe.')">Gérer l'abonnement</button></div>
+    </div>
+    <div class="card"><h3>Équipe (sièges nominatifs)</h3>
+      <ul class="list"><li><span>fmagan@orange.fr</span><span class="muted">titulaire</span></li><li><span>chef.categorie@marque.fr</span><span class="muted">siège</span></li><li><span>kam.nord@marque.fr</span><span class="muted">siège</span></li></ul>
+      <p class="hint">3 sièges utilisés sur 5.</p>
+    </div>
+    <div class="card"><h3>Charte de marque</h3><p class="muted" style="font-size:.9rem;">Appliquée à vos exports PowerPoint. Le template est lu sur votre poste.</p>
+      <div class="swatchbox"><i style="background:#2b3ff5"></i><i style="background:#10163a"></i><i style="background:#db2777"></i></div>
+      <div class="app-actions"><button class="btn btn-ghost btn-sm" onclick="alert('Démo : import de ton template .pptx/.potx.')">Importer mon template</button></div>
+    </div>
+    <div class="card"><h3>Mes présentations</h3>
+      <ul class="list"><li><span>Café — Total HYPERS+SUPERS</span><a class="btn btn-ghost btn-sm" data-go="app">Ouvrir</a></li><li><span>Coloration homme — Carrefour</span><a class="btn btn-ghost btn-sm" data-go="app">Ouvrir</a></li></ul>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ CONNEXION ============ -->
+<section data-page="login" hidden><div class="wrap"><div class="login">
+  <h1 style="font-size:1.5rem;">Connexion</h1>
+  <div class="card" style="margin-top:1rem;">
+    <p class="muted" style="font-size:.92rem;">Recevez un lien de connexion sécurisé par e-mail, sans mot de passe.</p>
+    <div class="field"><label for="mail">Adresse e-mail professionnelle</label><input id="mail" type="email" placeholder="prenom.nom@marque.fr"></div>
+    <button class="btn btn-primary" style="width:100%;" onclick="alert('Démo : dans l’app, un lien de connexion sécurisé est envoyé par e-mail.')">Recevoir mon lien de connexion</button>
+    <p class="hint" style="margin-top:.8rem;">Un siège = une adresse. Pas de compte partagé.</p>
+  </div>
+</div></div></section>
+</main>
+
+<footer><div class="wrap foot">
+  <div><b>CatPilot</b> — category management automatisé.</div>
+  <div>Démo navigable · données d'exemple fictives.</div>
+</div></footer>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  // ---- routing ----
+  function go(route){
+    document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.dataset.page!==route;});
+    document.querySelectorAll('.nav-links a').forEach(function(a){a.classList.toggle('on',a.dataset.nav===route);});
+    window.scrollTo(0,0);
+  }
+  document.addEventListener('click',function(e){var a=e.target.closest('[data-go]');if(a){e.preventDefault();go(a.getAttribute('data-go'));}});
+
+  // ---- hero : planogramme AU FACING (blocs marque en descentes alignées) ----
+  var AMBER='#ca8a04',CYAN='#0891b2',VIOLET='#7c3aed',BLUE='#2563eb',GREEN='#16a34a',PINK='#db2777',SKY='#0284c7';
+  var SHELVES=[
+    [{c:AMBER,w:6,cells:[4,2]},{c:CYAN,w:6,cells:[3,3]}],
+    [{c:AMBER,w:6,cells:[3,3]},{c:CYAN,w:6,cells:[6]}],
+    [{c:VIOLET,w:7,cells:[4,3]},{c:BLUE,w:5,cells:[5]}],
+    [{c:VIOLET,w:7,cells:[3,4]},{c:BLUE,w:5,cells:[2,3]}],
+    [{c:SKY,w:3,cells:[3]},{c:GREEN,w:4,cells:[2,2]},{c:PINK,w:5,cells:[3,2]}]
+  ];
+  var hp=$('heroPlano');
+  SHELVES.forEach(function(shelf){
+    var sh=document.createElement('div');sh.className='fshelf';
+    shelf.forEach(function(bl){
+      var b=document.createElement('div');b.className='fblock';b.style.flexGrow=bl.w;
+      bl.cells.forEach(function(w){var cc=document.createElement('span');cc.className='fcell';cc.style.flexGrow=w;cc.style.background=bl.c;b.appendChild(cc);});
+      sh.appendChild(b);
+    });
+    hp.appendChild(sh);
+  });
+
+  // ---- app module ----
+  var TYPES=['Moulu','Grain','Capsules'];
+  var TCOLOR={Moulu:'#2b3ff5',Grain:'#db2777',Capsules:'#0891b2'};
+  var PRICE={Moulu:5.0,Grain:6.2,Capsules:8.8}, MARGIN={Moulu:.28,Grain:.32,Capsules:.45};
+  var TREND={Moulu:-.04,Grain:.03,Capsules:.12}, BMOD={'Arôma':.02,'Belcafé':-.01,"Moka d'Or":.05,'Grain Noir':0,'MDD':-.03};
+  var matrix=[{n:'Arôma',Moulu:150000,Grain:90000,Capsules:72000},{n:'Belcafé',Moulu:120000,Grain:60000,Capsules:48000},{n:"Moka d'Or",Moulu:60000,Grain:50000,Capsules:31000},{n:'Grain Noir',Moulu:20000,Grain:66000,Capsules:10000},{n:'MDD',Moulu:50000,Grain:20000,Capsules:18000}];
+  var GEO={TOT:{f:1,l:'Total HYPERS+SUPERS'},HYP:{f:.64,l:'HYPERS'},CAR:{f:.28,l:'Carrefour + Drive'},AUC:{f:.19,l:'Auchan Intégré'}};
+  var PER={P2:{f:1},P1:{f:.95},P13:{f:1.08},CAM:{f:12.3}};
+  var strat='ca';
+  var eur=function(v){return Math.round(v).toLocaleString('fr-FR')+' €';}, num=function(v){return Math.round(v).toLocaleString('fr-FR');};
+  function evolTag(e){var c=e>=0?'up':'down';return '<span class="evol '+c+'">'+(e>=0?'+':'')+Math.round(e*100)+'%</span>';}
+  function curCell(b,t,ca,sc){return (ca==='val'?b[t]:b[t]/PRICE[t])*sc;}
+  function yaCell(b,t,ca,sc){return curCell(b,t,ca,sc)/(1+(TREND[t]+(BMOD[b.n]||0)));}
+  function compute(){
+    var ca=$('selCA').value,per=$('selPer').value,geo=$('selGeo').value,sc=GEO[geo].f*PER[per].f;
+    var colCur={Moulu:0,Grain:0,Capsules:0},colYA={Moulu:0,Grain:0,Capsules:0},colUni={Moulu:0,Grain:0,Capsules:0},grand=0,grandYA=0,rows=[];
+    matrix.forEach(function(b){var r={n:b.n,cells:{},tot:0,ya:0};TYPES.forEach(function(t){var v=curCell(b,t,ca,sc),y=yaCell(b,t,ca,sc);r.cells[t]=v;r.tot+=v;r.ya+=y;colCur[t]+=v;colYA[t]+=y;colUni[t]+=b[t]/PRICE[t]*sc;grand+=v;grandYA+=y;});r.evol=r.tot/r.ya-1;rows.push(r);});
+    return {ca:ca,per:per,geo:geo,rows:rows,colCur:colCur,colYA:colYA,colUni:colUni,grand:grand,grandYA:grandYA};
+  }
+  function stratShares(d){var w={},sumUni=TYPES.reduce(function(s,x){return s+d.colUni[x];},0)||1;TYPES.forEach(function(t){if(strat==='ca')w[t]=d.colCur[t];else if(strat==='rot')w[t]=d.colUni[t];else if(strat==='marge')w[t]=d.colCur[t]*MARGIN[t];else w[t]=.5*(d.colCur[t]/(d.grand||1))+.5*(d.colUni[t]/sumUni);});var sum=TYPES.reduce(function(s,t){return s+w[t];},0)||1,sh={};TYPES.forEach(function(t){sh[t]=w[t]/sum;});return sh;}
+  function render(){
+    if(!$('matrix'))return;
+    var d=compute(),ca=d.ca,fmt=function(v){return ca==='val'?eur(v):num(v);};
+    $('ctxGeo').textContent=GEO[d.geo].l;$('ctxPer').textContent=d.per;$('thTot').textContent=ca==='val'?'Total CA':'Total unités';
+    var tb=$('matrix');tb.innerHTML='';
+    d.rows.forEach(function(r){var tr=document.createElement('tr');tr.innerHTML='<td>'+r.n+'</td>'+TYPES.map(function(t){return '<td>'+fmt(r.cells[t])+'</td>';}).join('')+'<td class="totcol">'+fmt(r.tot)+'</td><td class="share">'+Math.round(r.tot/d.grand*100)+'%</td><td>'+evolTag(r.evol)+'</td>';tb.appendChild(tr);});
+    $('totrow').innerHTML='<tr><td>Total catégorie</td>'+TYPES.map(function(t){return '<td>'+fmt(d.colCur[t])+'</td>';}).join('')+'<td>'+fmt(d.grand)+'</td><td>100%</td><td>'+evolTag(d.grand/d.grandYA-1)+'</td></tr>';
+    var sh=stratShares(d),sumUni=TYPES.reduce(function(s,t){return s+d.colUni[t];},0)||1;
+    var bar=$('bar');bar.innerHTML='';var leg=$('legend');leg.innerHTML='';var eb=$('ecart');eb.innerHTML='';
+    TYPES.forEach(function(t){
+      var pc=sh[t]*100,te=d.colCur[t]/d.colYA[t]-1;
+      var s=document.createElement('div');s.className='seg-b';s.style.width=pc+'%';s.style.background=TCOLOR[t];s.innerHTML=pc>11?t+'<small>'+Math.round(pc)+'%</small>':'';bar.appendChild(s);
+      var sp=document.createElement('span');sp.innerHTML='<i style="background:'+TCOLOR[t]+'"></i>'+t+' · '+Math.round(pc)+'% linéaire · <b class="'+(te>=0?'up':'down')+'">'+(te>=0?'+':'')+Math.round(te*100)+'% N-1</b>';leg.appendChild(sp);
+      var vol=d.colUni[t]/sumUni,ec=(sh[t]-vol)*100,cls=Math.abs(ec)<0.5?'neutral':(ec>0?'over':'under'),tag=Math.abs(ec)<0.5?'≈ équilibré':(ec>0?'+'+Math.round(ec)+' pts · sur-facé':Math.round(ec)+' pts · sous-facé');
+      eb.innerHTML+='<tr><td>'+t+'</td><td>'+Math.round(sh[t]*100)+'%</td><td>'+Math.round(vol*100)+'%</td><td class="'+cls+'">'+tag+'</td></tr>';
+    });
+    var typeEvol=TYPES.map(function(t){return {t:t,e:d.colCur[t]/d.colYA[t]-1,share:d.colCur[t]/d.grand,lin:sh[t]};});
+    var grow=typeEvol.slice().sort(function(a,b){return b.e-a.e;})[0],socle=typeEvol.slice().sort(function(a,b){return b.share-a.share;})[0],decl=typeEvol.slice().sort(function(a,b){return a.e-b.e;})[0],bestBrand=d.rows.slice().sort(function(a,b){return b.evol-a.evol;})[0];
+    var lines=['<b>'+grow.t+'</b> : +'+Math.round(grow.e*100)+'% vs N-1 — dynamique la plus forte. '+Math.round(grow.lin*100)+'% du linéaire ; renforcer au-delà de sa part actuelle ('+Math.round(grow.share*100)+'%).','<b>'+socle.t+'</b> : socle du rayon ('+Math.round(socle.share*100)+'% du CA)'+(socle.e<0?' mais en recul ('+Math.round(socle.e*100)+'% N-1) — tenir sans sur-facer.':' — maintenir.'),'<b>'+bestBrand.n+'</b> : marque la plus dynamique ('+(bestBrand.evol>=0?'+':'')+Math.round(bestBrand.evol*100)+'% N-1) — candidate à une mise en avant.'];
+    if(decl.t!==socle.t&&decl.e<0)lines.push('<b>'+decl.t+'</b> en repli ('+Math.round(decl.e*100)+'% N-1) — rationaliser l\'assortiment le moins tournant.');
+    var tr=$('trame');tr.innerHTML='';lines.forEach(function(l){var li=document.createElement('li');li.innerHTML=l;tr.appendChild(li);});
+  }
+  ['selCA','selPer','selGeo'].forEach(function(id){var el=$(id);if(el)el.addEventListener('change',render);});
+  var st=$('strat');if(st)st.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;strat=b.getAttribute('data-s');[].forEach.call(st.querySelectorAll('button'),function(x){x.classList.toggle('on',x===b);});render();});
+  render(); go('accueil');
+})();
+</script>
