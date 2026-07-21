@@ -1,8 +1,8 @@
 import * as XLSX from 'xlsx';
 import type { ParsedDataset, Product } from './types';
 import type { Locale } from './i18n';
-import ALIASES_JSON from './column-aliases.json';
-import SIGN_JSON from './column-signatures.json';
+import ALIASES_JSON from './column-aliases.json' with { type: 'json' };
+import SIGN_JSON from './column-signatures.json' with { type: 'json' };
 
 /**
  * Fuzzy column detection for Nielsen / Circana style exports.
