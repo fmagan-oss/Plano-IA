@@ -14,6 +14,7 @@ import PlanogramView from './PlanogramView';
 import PlanDeMasse from './PlanDeMasse';
 import BuyerFrame from './BuyerFrame';
 import Copilot from './Copilot';
+import LinearDiagnostic from './LinearDiagnostic';
 
 const STRATEGY_ORDER: StrategyKey[] = ['balanced', 'rotation', 'margin', 'revenue'];
 
@@ -534,6 +535,7 @@ export default function CatPilotApp({ pro, presentationId = null }: { pro: boole
                   <Copilot products={products} pro={pro} />
                 </div>
                 <PlanogramView plano={plano} />
+                <LinearDiagnostic plano={plano} products={products} />
                 {effFrame && (
                   <BuyerFrame
                     frame={effFrame}
