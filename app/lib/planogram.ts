@@ -57,6 +57,55 @@ export const STRATEGIES: Record<StrategyKey, Strategy> = {
 
 export const DEFAULT_FIXTURE: Fixture = { shelves: 5, facingsPerShelf: 12 };
 
+/**
+ * Règles merchandising appliquées à l'ordre des blocs et au placement.
+ * - `blocMarqueObligatoire` : marques toujours contiguës (vision bloc-marque) ;
+ * - `leaderAtEntrance` : le LEADER (part de CA) ancré en entrée de rayon ;
+ * - `mddNextToLeader` : la MDD placée juste à côté du leader ;
+ * - `naturalPole` : où regrouper le pôle naturalité — 'cold' (zone froide / bas),
+ *   'middle' (milieu de rayon), 'spread' (réparti), 'off' (pas de traitement).
+ *   Réglage laissé à VALIDER (défaut 'off' : on n'impose pas une règle merch non
+ *   tranchée). Les autres défauts reprennent des règles merch standard.
+ */
+export interface MerchOptions {
+  blocMarqueObligatoire: boolean;
+  leaderAtEntrance: boolean;
+  mddNextToLeader: boolean;
+  naturalPole: 'cold' | 'middle' | 'spread' | 'off';
+}
+
+export const DEFAULT_MERCH: MerchOptions = {
+  blocMarqueObligatoire: true,
+  leaderAtEntrance: true,
+  mddNextToLeader: true,
+  naturalPole: 'off',
+};
+
+const MDD_TOKENS = [
+  'mdd', 'marque distributeur', 'marque repere', 'marque repère', 'private label', 'own brand',
+  'carrefour', 'auchan', 'leclerc', 'casino', 'monoprix', 'intermarche', 'intermarché',
+  'cora', 'systeme u', 'système u', 'u bio', 'les 2 vaches', 'reflets de france', 'huismerk',
+];
+const NATURAL_TOKENS = [
+  'bio', 'naturel', 'nature', 'natural', 'organic', 'vegan', 'vegetal', 'végétal', 'plant',
+  'sans sulfate', 'sans silicone', 'sans paraben', 'green', 'eco', 'écolo', 'clean',
+];
+
+function hasToken(s: string, tokens: string[]): boolean {
+  const h = s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return tokens.some((t) => h.includes(t));
+}
+
+/** Marque de distributeur (heuristique nom de marque). */
+export function isMDD(brand: string): boolean {
+  return hasToken(brand, MDD_TOKENS);
+}
+
+/** Produit « naturalité » (bio / naturel / clean), d'après nom + segment. */
+export function isNaturalProduct(p: Product): boolean {
+  return hasToken(`${p.brand} ${p.name} ${p.segment}`, NATURAL_TOKENS);
+}
+
 interface MetricTotals { rev: number; vol: number; mar: number }
 
 /**
@@ -167,59 +216,99 @@ function buildBrandBlocks(facings: Facing[], colorMap: Record<string, string>): 
 }
 
 /**
- * Lay facings out on shelves as brand blocks. Brands stay contiguous; within a
- * brand, best sellers first. Novelties are lifted toward eye-level shelves
- * (levels 1–2 on a 5-shelf fixture).
+ * Réordonne les blocs selon les règles merch, SANS toucher aux facings alloués
+ * (l'allocation reste économique ; le merch ne fait que placer les blocs).
+ * Entrée de rayon = tête de liste (remplie en premier, niveau des yeux).
+ */
+function orderBlocksForMerch(blocks: BrandBlock[], opts: MerchOptions): BrandBlock[] {
+  if (blocks.length <= 1) return blocks;
+  let ordered = [...blocks];
+  if (opts.leaderAtEntrance) {
+    // Le leader = plus grosse part de CA (poids marché), pas seulement de facings.
+    ordered.sort((a, b) => b.revenueShare - a.revenueShare || b.facings - a.facings);
+  }
+  if (opts.mddNextToLeader) {
+    const mddIdx = ordered.findIndex((b, i) => i > 0 && isMDD(b.brand));
+    if (mddIdx > 1) {
+      const [mdd] = ordered.splice(mddIdx, 1);
+      ordered.splice(1, 0, mdd); // juste après le leader
+    }
+  }
+  return ordered;
+}
+
+/**
+ * Répartit un total entier `total` entre des poids, en garantissant `minEach`
+ * à chacun quand la place le permet (plus grands restes). Somme exacte = total.
+ */
+function distributeInt(weights: number[], total: number, minEach = 0): number[] {
+  const n = weights.length;
+  if (n === 0) return [];
+  const m = Math.min(minEach, Math.floor(total / n)); // plancher réellement tenable
+  const rest = total - m * n;
+  const sum = weights.reduce((a, b) => a + Math.max(b, 0), 0) || 1;
+  const exact = weights.map((w) => (Math.max(w, 0) / sum) * rest);
+  const out = exact.map((x) => Math.floor(x));
+  let left = rest - out.reduce((a, b) => a + b, 0);
+  const order = exact.map((x, i) => ({ i, frac: x - Math.floor(x) })).sort((a, b) => b.frac - a.frac);
+  for (let k = 0; k < order.length && left > 0; k++) { out[order[k].i]++; left--; }
+  return out.map((x) => x + m);
+}
+
+/**
+ * Dispose les facings en BLOCS MARQUE VERTICAUX (vision bloc-marque obligatoire).
+ * Chaque marque occupe une bande de colonnes contiguë sur TOUS les niveaux — donc
+ * un bloc vertical propre, jamais entrelacé. Les bandes sont posées de gauche à
+ * droite dans l'ordre merch : le LEADER (et la MDD adjacente) en entrée de rayon
+ * (à gauche). Dans une bande, les best-sellers / nouveautés remontent au niveau
+ * des yeux.
  */
 function buildShelves(facings: Facing[], blocks: BrandBlock[], fixture: Fixture, locale: Locale): Shelf[] {
-  const shelfLabels = labelShelves(fixture.shelves, locale);
+  const S = Math.max(1, fixture.shelves);
+  const colsTotal = Math.max(1, fixture.facingsPerShelf);
+  const shelfLabels = labelShelves(S, locale);
   const shelves: Shelf[] = shelfLabels.map((label, level) => ({ level, label, cells: [] }));
 
-  // Order facings brand-by-brand (blocks are sorted by weight), best sellers first.
   const facingByBrand = new Map<string, Facing[]>();
   for (const f of facings) {
     if (!facingByBrand.has(f.product.brand)) facingByBrand.set(f.product.brand, []);
     facingByBrand.get(f.product.brand)!.push(f);
   }
 
-  // Flatten into a single sequence, expanding each product into its facings.
-  const sequence: Facing[] = [];
-  for (const block of blocks) {
-    const list = (facingByBrand.get(block.brand) || []).sort((a, b) => {
-      // novelties first inside a brand, then by facing count
+  // Trop de marques pour une colonne chacune : on ne dessine que les premières
+  // (ordre merch) qui tiennent — les autres restent au plan de masse (table).
+  const drawn = blocks.slice(0, colsTotal);
+  // Largeur de bande (colonnes) par marque ≈ facings marque / niveaux ; somme = colsTotal.
+  const widths = distributeInt(drawn.map((b) => b.facings), colsTotal, 1);
+
+  const fillOrder = eyeLevelOrder(S); // niveaux à remplir d'abord : yeux, mains, haut…
+
+  drawn.forEach((block, bi) => {
+    const w = Math.max(1, widths[bi]);
+    const bandCap = w * S;
+    const products = (facingByBrand.get(block.brand) || []).slice().sort((a, b) => {
       if (a.product.isNew !== b.product.isNew) return a.product.isNew ? -1 : 1;
       return b.facings - a.facings;
     });
-    for (const f of list) sequence.push(f);
-  }
-
-  // Fill shelves left→right, top-priority products onto eye-level shelves first.
-  // Eye-level order for a 5-shelf fixture: 1, 2, 0, 3, 4.
-  const fillOrder = eyeLevelOrder(fixture.shelves);
-  const capacity = fixture.facingsPerShelf;
-  let oi = 0;
-  let shelf = shelves[fillOrder[oi]];
-
-  for (const f of sequence) {
-    let left = f.facings;
-    while (left > 0) {
-      if (shelf.cells.reduce((a, c) => a + c.facings, 0) >= capacity) {
-        oi++;
-        if (oi >= fillOrder.length) break; // fixture full
-        shelf = shelves[fillOrder[oi]];
-      }
-      const used = shelf.cells.reduce((a, c) => a + c.facings, 0);
-      const room = capacity - used;
-      const put = Math.min(room, left);
-      shelf.cells.push({ product: f.product, facings: put, share: f.share });
-      left -= put;
-      if (left > 0) {
-        oi++;
-        if (oi >= fillOrder.length) break;
-        shelf = shelves[fillOrder[oi]];
+    // Remplir exactement la bande (rectangle plein) : on redistribue les facings
+    // de la marque sur bandCap emplacements (proportions conservées, min 1/réf).
+    const slots = distributeInt(products.map((f) => f.facings), bandCap, products.length ? 1 : 0);
+    // Liste d'unités (un produit par emplacement), best-sellers d'abord.
+    const units: Facing[] = [];
+    products.forEach((f, i) => { for (let k = 0; k < slots[i]; k++) units.push(f); });
+    // Poser rangée par rangée dans l'ordre yeux→bas, w colonnes par niveau.
+    let u = 0;
+    for (const level of fillOrder) {
+      const rowUnits: Facing[] = [];
+      for (let c = 0; c < w; c++) rowUnits.push(units[u++] ?? units[units.length - 1]);
+      // Fusionner les unités consécutives du même produit en une cellule.
+      for (const ru of rowUnits) {
+        const last = shelves[level].cells[shelves[level].cells.length - 1];
+        if (last && last.product === ru.product) last.facings += 1;
+        else shelves[level].cells.push({ product: ru.product, facings: 1, share: ru.share });
       }
     }
-  }
+  });
 
   return shelves;
 }
@@ -336,15 +425,17 @@ export function generatePlanogram(
   products: Product[],
   key: StrategyKey,
   fixture: Fixture = DEFAULT_FIXTURE,
-  locale: Locale = 'fr'
+  locale: Locale = 'fr',
+  merch: Partial<MerchOptions> = {}
 ): Planogram {
+  const opts: MerchOptions = { ...DEFAULT_MERCH, ...merch };
   const strategy = STRATEGIES[key];
   const brands = Array.from(new Set(products.map((p) => p.brand)));
   const colorMap = brandColorMap(brands);
 
   const totalFacings = fixture.shelves * fixture.facingsPerShelf;
   const facingsList = allocateFacings(products, totalFacings, key);
-  const brandBlocks = buildBrandBlocks(facingsList, colorMap);
+  const brandBlocks = orderBlocksForMerch(buildBrandBlocks(facingsList, colorMap), opts);
   const shelves = buildShelves(facingsList, brandBlocks, fixture, locale);
   const novelties = products.filter((p) => p.isNew);
   const totalRevenue = products.reduce((a, p) => a + p.revenue, 0);
@@ -385,6 +476,23 @@ export function deterministicInsights(products: Product[], locale: Locale = 'fr'
       fr
         ? `${novelties.length} nouveauté(s) détectée(s) — à remonter au niveau des yeux avec facing de lancement.`
         : `${novelties.length} new product(s) detected — raise them to eye level with a launch facing.`
+    );
+  }
+  const naturals = products.filter(isNaturalProduct);
+  if (naturals.length) {
+    const natShare = Math.round((naturals.reduce((a, p) => a + p.revenue, 0) / totalRev) * 100);
+    insights.push(
+      fr
+        ? `Pôle naturalité : ${naturals.length} réf. (${natShare}% du CA). Emplacement à trancher — zone froide, milieu de rayon ou réparti ?`
+        : `Natural pole: ${naturals.length} SKUs (${natShare}% of value). Placement to be decided — cold zone, mid-aisle or spread?`
+    );
+  }
+  const mddBrands = ranked.filter(([b]) => isMDD(b));
+  if (mddBrands.length) {
+    insights.push(
+      fr
+        ? `MDD détectée (${mddBrands.map(([b]) => b).slice(0, 2).join(', ')}) — placée à côté du bloc leader (règle merch).`
+        : `Private label detected (${mddBrands.map(([b]) => b).slice(0, 2).join(', ')}) — placed next to the leader block (merch rule).`
     );
   }
   const longTail = ranked.filter(([, rev]) => rev / totalRev < 0.02).length;
