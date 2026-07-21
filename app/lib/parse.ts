@@ -491,16 +491,21 @@ function pivotWideNamed(raw: unknown[][], enseigne?: string, category?: string):
     return !!brand || hasEan || (isFinite(v) && v !== 0);
   };
   const enseignes: string[] = [];
+  // Poids de chaque enseigne (Σ CA de la période de référence) : par défaut on lit
+  // la PLUS SIGNIFICATIVE, jamais la première venue (qui peut être minuscule → plan vide).
+  const weightByEnseigne = new Map<string, number>();
   if (marketCol >= 0) {
     const seen = new Set<string>();
     for (let r = mr + 1; r < raw.length; r++) {
       const row = raw[r] || [];
       const mk = String(row[marketCol] ?? '').trim();
-      if (!mk || seen.has(mk) || JUNK_MARKET.test(mk) || !isRealRow(row)) continue;
-      seen.add(mk); enseignes.push(mk);
+      if (!mk || JUNK_MARKET.test(mk) || !isRealRow(row)) continue;
+      if (!seen.has(mk)) { seen.add(mk); enseignes.push(mk); }
+      weightByEnseigne.set(mk, (weightByEnseigne.get(mk) ?? 0) + Math.max(toNumber(row[revCol]), 0));
     }
   }
-  const target = marketCol < 0 ? null : (enseigne && enseignes.includes(enseigne) ? enseigne : enseignes[0] ?? null);
+  const biggest = [...weightByEnseigne.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const target = marketCol < 0 ? null : (enseigne && enseignes.includes(enseigne) ? enseigne : biggest ?? enseignes[0] ?? null);
 
   // 2ter. Catégories (colonne GROEP/Catégorie) DANS l'enseigne cible : un même
   // fichier peut mêler plusieurs catégories (ex. coloration + soin intime). On
