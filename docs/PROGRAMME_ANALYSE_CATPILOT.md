@@ -113,17 +113,25 @@ Sortie de la phase : `{ produits[], colonnes détectées, avertissements, enseig
 ## PHASE C — Allouer le linéaire (`generatePlanogram`)
 
 ### Étape 12 — Poids de chaque produit (selon l'angle stratégique)
-- **CA** : poids = CA. **Rotation** : poids = volume. **Marge** : poids = marge. **Équilibré** : 0,45·CA + 0,35·volume + 0,20·marge.
+- Les poids raisonnent en **PARTS normalisées** (0..1), **jamais en valeurs brutes** : mélanger des € (CA,
+  grands nombres) et des unités (volume) bruts laissait le CA écraser tout — « équilibré » n'était pas équilibré.
+- **CA** : part de CA (= fair-share valeur). **Rotation** : part de volume. **Marge** : part de marge.
+  **Équilibré** : 0,5·partCA + 0,3·partVolume + 0,2·partMarge (ancré valeur, puis tilté).
 
 ### Étape 13 — Allocation des facings (`allocateFacings`)
 - **Minimum 1 facing** par référence ;
-- **bonus nouveauté** (léger) pour les innovations ;
+- **bonus nouveauté** *relatif* (+25 %), pas un « +1 » absolu qui casserait l'échelle des parts ;
 - répartition du reste **proportionnelle au poids**, méthode du **plus fort reste** (largest remainder).
+- Cohérence R10 : à facings ∝ valeur, le CA/facing est ~constant → pas de sur/sous-linéarisation artificielle.
 
-### Étape 14 — Blocs marques + planches
-- **Blocs marques** contigus, triés par poids ;
-- remplissage des planches gauche→droite, priorité **niveau des yeux** (planche 2) ;
-- nouveautés remontées au niveau des yeux.
+### Étape 14 — Blocs marques + planches (règles merch, `MerchOptions`)
+- **Vision bloc-marque OBLIGATOIRE** : chaque marque occupe une **bande VERTICALE** de colonnes contiguë
+  sur **tous les niveaux** (bloc propre, jamais entrelacé verticalement) ;
+- **Leader en entrée de rayon** : la marque leader **en part de CA** est posée à gauche (entrée) ;
+- **MDD à côté du leader** : la marque de distributeur (heuristique `isMDD`) est amenée juste après le leader ;
+- **Pôle naturalité** (`isNaturalProduct`) : zone froide / milieu / réparti — **mécanisme en place mais
+  DÉSACTIVÉ par défaut** (il croise les blocs-marque, arbitrage merch à trancher) ;
+- best-sellers et nouveautés remontés au **niveau des yeux** dans la bande.
 
 ### Étape 15 — Trame acheteur (`buildBuyerFrame`)
 Génère les textes de présentation depuis les chiffres du plan (bloc leader, sur/sous-facing, nouveautés, impact attendu).
@@ -185,40 +193,50 @@ Quand elles **se contredisent** → alerte (à trancher à la main, pas au hasar
 
 - Exercices de la formation : EX01 (double-compte), EX02 (VMH), EX03 (YA), EX09 (PDL développée),
   EX10 (circularité CA/facing), EX11 (rotation/rupture) — attendus recalculés, servent de non-régression.
-- Corpus synthétique + fichiers réels ; `scripts/train-parser.mjs` (mapping) et
-  `scripts/test-linear-diagnostic.mjs` (R9/R10/R11) doivent rester verts.
+- Corpus synthétique + fichiers réels. Batterie lancée par **`npm test`** (`scripts/test-all.mjs`) :
+  - `test-formats` (formats + enseigne par défaut la plus grosse + plan non vide + période exposée) ;
+  - `test-planogram` (allocation en parts : CA=fair-share, rotation=volume, équilibré ancré valeur) ;
+  - `test-merch` (bloc-marque vertical aligné, leader en entrée, MDD adjacente, classifieurs) ;
+  - `test-pack-library` (matching EAN + retombée catégorie) ;
+  - `test-linear-diagnostic` (R9/R10/R11) ; `train-parser` (mapping).
 - Méthode : chaque piège devient d'abord un **test qui échoue**, puis on corrige (« le test est la mémoire »).
 
 ---
 
 ## ⚠️ LIMITES CONNUES / À FIABILISER (pour l'audit)
 
-C'est ici que l'analyse « sort encore faux ». Points à challenger en priorité :
+C'est ici que l'analyse « sortait faux ». État après la passe de fiabilisation :
 
-1. **L'allocation n'intègre pas R9/R10/R11.** Le plan (`allocateFacings`) répartit au **poids brut**
-   (CA/volume/marge). La productivité (R10), le linéaire développé (R9) et le plancher rotation (R11)
-   sont calculés **à part, en diagnostic**, mais **ne pilotent pas** l'allocation. → Le plan proposé
-   peut sur/sous-facer par rapport à son propre diagnostic. **À réconcilier.**
+1. **[CORRIGÉ EN PARTIE] Allocation ↔ R10.** Les poids sont désormais des **parts normalisées** :
+   « CA » = fair-share valeur (cohérent R10), « équilibré » réellement équilibré. **Reste** : R9
+   (linéaire développé) et R11 (plancher rotation) restent en **diagnostic** et ne **pilotent** pas
+   encore l'allocation. → réconciliation R9/R11 à finir.
 
-2. **Enseigne par défaut = la première réelle.** Si le fichier commence par une enseigne minuscule,
-   le plan est quasi vide (bug observé sur NH : « un seul visuel »). → Choisir par défaut une enseigne
-   **significative** (le total, ou la plus grosse).
+2. **[CORRIGÉ] Enseigne par défaut = la plus grosse.** On choisit par défaut l'enseigne **la plus
+   significative** (poids CA sur la période de référence), plus jamais la première venue. Le bug NH
+   « un seul visuel » est verrouillé par `scripts/test-formats.mjs`.
 
 3. **Niveau lu variable.** Selon le fichier, le niveau retenu est marque, type de produit ou SKU.
    Le « plan de masse **au type de produit** » (moulu/grain/capsules ; barbe/cheveux) n'est pas
    systématique — dépend de la présence d'un segment/usage exploitable.
 
-4. **R9/R11 dépendent de colonnes de relevé** (largeur, rotation, capacité, réappro) **absentes des
-   panels** → souvent en diagnostic seulement, pas dans le plan. Il manque une source de **largeurs**
-   (bibliothèque de packs / relevé photo) pour que R9 pilote vraiment.
+4. **[EN COURS] Largeurs pour R9.** Une **bibliothèque de packs** (`pack-library.ts`) fournit une
+   largeur par **EAN** connu, sinon la **largeur typique de la catégorie** (sans ressaisie manuelle).
+   R9 n'est **pas encore activé d'office** sur ces largeurs *estimées* (éviter une fausse précision) —
+   décision à valider. Rotation/capacité/réappro (R11) restent des colonnes de relevé.
 
-5. **Détection des familles/usages** (Barbe/Cheveux, naturalité…) : heuristique côté prototype, à
-   fiabiliser sur données réelles.
+5. **Détection des familles/usages** (Barbe/Cheveux, naturalité…) : heuristique (`isNaturalProduct`),
+   à fiabiliser sur données réelles.
 
 6. **Coefficient de pointe (R11)** : paramètre par catégorie/enseigne, aujourd'hui défaut = 1 — à calibrer.
 
 7. **Pas de contrôle de conformité photo** (façon Pensa) : la reconstruction du plan **actuel** depuis
    une photo du rayon n'existe pas encore — ce serait la source directe de facings + largeurs réels.
+
+**Sélecteurs (enseigne / catégorie / mesure / période).** Enseigne + catégorie sont sélectionnables ;
+la **période analysée** est désormais un champ de premier plan (`period`) et les périodes disponibles
+sont exposées (`periods`, format long). Le **ré-pivot** sur une période/mesure choisie (et l'UI du
+sélecteur) restent à câbler — changement d'interface **à valider**.
 
 ---
 
