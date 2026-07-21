@@ -376,5 +376,9 @@
       "Qté"
     ],
     "at": "2026-07-21"
+  },
+  "corpus/fr-format-croise.xlsx": {
+    "report": true,
+    "at": "2026-07-21"
   }
 }

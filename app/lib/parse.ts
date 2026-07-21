@@ -188,6 +188,173 @@ function looksLikeCrossTabReport(wb: XLSX.WorkBook): boolean {
   return false;
 }
 
+/**
+ * R5 (format croisé, type Circana) : la mesure est en colonne (« Mesures »), les
+ * périodes sont en colonnes. On PIVOTE en tableau à plat « une marque = une
+ * ligne » (CA, Volume) sur une période de référence, avant la lecture normale.
+ *
+ * Rigueur (aucun raccourci) :
+ *  - période de référence unique : cumul (CAM/MAT/YTD) préféré, sinon la période
+ *    complète la plus récente ; jamais une colonne « année précédente » (YA/A-1)
+ *    ni une colonne vide (le total de la catégorie doit y être renseigné) ;
+ *  - un seul niveau de hiérarchie : le plus GROSSIER (marques, pas les SKU) dont
+ *    la somme des CA reconstitue le total de la catégorie — pas de double
+ *    comptage ; si aucun niveau ne reconstitue le total, la feuille est refusée
+ *    (on ne fabrique pas un plan faux) ;
+ *  - les mesures non sommables (moyennes, %Evol, VMH, PDL) sont ignorées.
+ */
+interface PivotEntry { name: string; ca: number; vol: number; depth: number }
+
+/** Fin de période d'un en-tête daté (dernière date lue) — pour ordonner. */
+function periodEndKey(header: string): number | null {
+  const dates = [...header.matchAll(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/g)];
+  if (!dates.length) return null;
+  const m = dates[dates.length - 1];
+  let y = parseInt(m[3], 10);
+  if (y < 100) y += 2000;
+  return new Date(y, parseInt(m[2], 10) - 1, parseInt(m[1], 10)).getTime();
+}
+
+interface PeriodCol { j: number; label: string; norm: string; isCumul: boolean; isWeek: boolean; end: number }
+
+/** Rang de préférence d'une période de référence : cumul > période > semaine. */
+function periodRank(p: PeriodCol): number {
+  return p.isCumul ? 3 : p.isWeek ? 1 : 2;
+}
+
+function pivotOneSheet(raw: unknown[][]): { entries: PivotEntry[]; period: string; rank: number } | null {
+  const revAliases = COLUMN_ALIASES.revenue.map(normalize);
+  const volAliases = COLUMN_ALIASES.volume.map(normalize);
+  const isPeriodCell = (c: string) =>
+    /\bp\d{1,2}\b.*\bdu\b.*\bau\b/i.test(c) || /\bsem\b.*\bdu\b/i.test(c) || /\bdu\b \d{2}-\d{2}-\d{4} \bau\b/i.test(c);
+  let hi = -1;
+  let mesureCol = -1;
+  let produitCol = -1;
+  let periodCols: number[] = [];
+  for (let i = 0; i < Math.min(raw.length, 8); i++) {
+    const cells = (raw[i] || []).map((c) => (c == null ? '' : String(c)));
+    const norm = cells.map(normalize);
+    const mc = norm.findIndex((c) => c === 'mesures' || c === 'measures' || c === 'mesure');
+    if (mc < 0) continue;
+    const pcs = cells.map((c, j) => ({ c, j })).filter(({ c }) => isPeriodCell(c)).map(({ j }) => j);
+    if (!pcs.length) continue;
+    hi = i; mesureCol = mc; periodCols = pcs;
+    produitCol = norm.findIndex((c) => c === 'produits' || c === 'produit' || c === 'product' || c === 'products');
+    if (produitCol < 0) produitCol = 0;
+    break;
+  }
+  if (hi < 0) return null;
+
+  // Colonnes-périodes candidates : on écarte l'année précédente (YA/A-1) et les
+  // colonnes d'évolution (%Evol, Ecart). On classe cumul > période > semaine.
+  const candidates: PeriodCol[] = periodCols
+    .map((j) => {
+      const label = String(raw[hi][j] ?? '');
+      const nh = normalize(label);
+      return {
+        j, label, norm: nh,
+        isCumul: CUMUL_RE.test(nh),
+        isWeek: /\bsem\b/.test(nh),
+        end: periodEndKey(label) ?? -Infinity,
+      };
+    })
+    .filter((p) => !headerMatches(p.norm, YA_TERMS) && !/%|evol|ecart/.test(p.norm));
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => periodRank(b) - periodRank(a) || b.end - a.end);
+
+  // Total de la catégorie (ligne « TOTAL … », mesure CA) par colonne candidate :
+  // sert à (a) choisir une colonne réellement renseignée, (b) valider le niveau.
+  const totalCA: Record<number, number> = {};
+  const isCA = (m: string) =>
+    !!m && !SHARE_RE.test(m) && !headerMatches(m, NON_SUMMABLE) && !headerMatches(m, YA_TERMS) &&
+    !/%|evol|ecart/.test(m) && headerMatches(m, revAliases);
+  const isVolMeasure = (m: string) =>
+    !!m && !SHARE_RE.test(m) && !headerMatches(m, NON_SUMMABLE) && !headerMatches(m, YA_TERMS) &&
+    !/%|evol|ecart/.test(m) && headerMatches(m, volAliases);
+  for (let r = hi + 1; r < raw.length; r++) {
+    const row = raw[r] || [];
+    const produit = String(row[produitCol] ?? '').trim();
+    if (!produit || !TOTAL_RE.test(normalize(produit))) continue;
+    const measure = normalize(String(row[mesureCol] ?? ''));
+    if (!isCA(measure)) continue;
+    for (const c of candidates) {
+      const v = toNumber(row[c.j]);
+      if (v > (totalCA[c.j] ?? 0)) totalCA[c.j] = v; // total catégorie = le plus grand total
+    }
+  }
+  // Colonne de référence : la mieux classée dont le total catégorie est renseigné.
+  const ref = candidates.find((c) => (totalCA[c.j] ?? 0) > 0) ?? candidates[0];
+  const refCol = ref.j;
+  const grand = totalCA[refCol] ?? 0;
+
+  const map = new Map<string, PivotEntry>();
+  const order: string[] = [];
+  for (let r = hi + 1; r < raw.length; r++) {
+    const row = raw[r] || [];
+    const rawProduit = String(row[produitCol] ?? '');
+    const produit = rawProduit.trim();
+    if (!produit || TOTAL_RE.test(normalize(produit))) continue; // agrégats explicites exclus
+    const measure = normalize(String(row[mesureCol] ?? ''));
+    const rev = isCA(measure);
+    const vol = !rev && isVolMeasure(measure);
+    if (!rev && !vol) continue;
+    if (!map.has(produit)) {
+      map.set(produit, { name: produit, ca: 0, vol: 0, depth: rawProduit.length - rawProduit.trimStart().length });
+      order.push(produit);
+    }
+    const e = map.get(produit)!;
+    const val = toNumber(row[refCol]);
+    if (rev) e.ca = val; else e.vol = val;
+  }
+  const entries = order.map((p) => map.get(p)!);
+  if (entries.length < 2) return null;
+
+  const depths = [...new Set(entries.map((e) => e.depth))].sort((a, b) => a - b);
+  const sumAt = (d: number) => entries.filter((e) => e.depth === d).reduce((s, e) => s + e.ca, 0);
+  if (depths.length === 1) {
+    // Un seul niveau : on le garde tel quel (le fichier propre « croisé »).
+    return { entries, period: ref.label, rank: periodRank(ref) };
+  }
+  // Plusieurs niveaux : on garde le niveau le plus GROSSIER dont la somme des CA
+  // reconstitue le total de la catégorie (± 6 %). Référence = le total explicite
+  // s'il existe, sinon le niveau le plus fin. Aucun niveau valable ⇒ refus.
+  const target = grand > 0 ? grand : sumAt(depths[depths.length - 1]);
+  if (!(target > 0)) return null;
+  const complete = depths.filter((d) => {
+    const lvl = entries.filter((e) => e.depth === d);
+    // Σ du niveau ≈ total ⇒ niveau complet (un zéro ponctuel = marque sans vente
+    // sur la période, légitime ; la reconstitution du total suffit à valider).
+    return lvl.length >= 2 && Math.abs(sumAt(d) - target) / target < 0.06;
+  });
+  if (!complete.length) return null; // aucun niveau ne reconstitue le total : on refuse
+  const chosen = complete[0]; // le plus grossier complet
+  return { entries: entries.filter((e) => e.depth === chosen), period: ref.label, rank: periodRank(ref) };
+}
+
+/**
+ * R5 (format croisé, type Circana) : mesure et périodes en colonnes. On PIVOTE
+ * en tableau à plat « une marque = une ligne » sur une période de référence, en
+ * ne gardant qu'un seul niveau de hiérarchie. Entre feuilles, on préfère celle
+ * dont la période de référence est la plus solide (cumul > période > semaine),
+ * puis la plus riche (le plus de marques).
+ */
+function detectAndPivotCrossTab(wb: XLSX.WorkBook): { rows: unknown[][]; period: string } | null {
+  let best: { entries: PivotEntry[]; period: string; rank: number } | null = null;
+  for (const sheetName of wb.SheetNames.slice(0, 12)) {
+    const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[sheetName], {
+      header: 1,
+      blankrows: false,
+    }) as unknown as unknown[][];
+    const p = pivotOneSheet(raw);
+    if (!p) continue;
+    if (!best || p.rank > best.rank || (p.rank === best.rank && p.entries.length > best.entries.length)) best = p;
+  }
+  if (!best) return null;
+  const out: unknown[][] = [['Marque', 'CA', 'Volume']];
+  for (const e of best.entries) out.push([e.name, e.ca, e.vol]);
+  return { rows: out, period: best.period };
+}
+
 /** Repère un marqueur de période dans un en-tête (« P6 », « P12 », ou une date). */
 function periodTag(header: string | null): string | null {
   if (!header) return null;
@@ -283,9 +450,28 @@ export function parseWorkbook(
   if (!wb.SheetNames.length) {
     throw new Error(`« ${fileName} » ${D.noSheet}`);
   }
-  const { sheetName, rows } = pickBestSheet(wb);
+  // R5 (croisé) : si c'est un rapport à mesure/périodes en colonnes, on le pivote
+  // en tableau à plat avant tout. Sinon, lecture de la meilleure feuille.
+  const pivot = detectAndPivotCrossTab(wb);
+  let sheetName: string;
+  let rows: unknown[][];
+  let pivoted = false;
+  if (pivot && pivot.rows.length > 1) {
+    rows = pivot.rows;
+    sheetName = 'rapport';
+    pivoted = true;
+  } else {
+    ({ sheetName, rows } = pickBestSheet(wb));
+  }
 
   const warnings: string[] = [];
+  if (pivoted) {
+    warnings.push(
+      locale === 'fr'
+        ? `Rapport croisé lu (mesure et périodes en colonnes) : « Ventes Valeur » = CA, « Ventes Unité » = volume, période retenue « ${pivot!.period} ». Un seul niveau de hiérarchie, totaux exclus — vérifiez qu'aucun sous-total intermédiaire ne subsiste.`
+        : `Cross-tab report read (measure and periods in columns): sales value = revenue, units = volume, reference period “${pivot!.period}”. Single hierarchy level, totals excluded.`
+    );
+  }
   if (!rows.length) {
     throw new Error(`« ${sheetName} » ${D.emptySheet}`);
   }
@@ -482,7 +668,7 @@ export function parseWorkbook(
   const found = headers.filter(Boolean).map((h) => `« ${h} »`).join(', ');
 
   // 1) Rapport panel croisé (Circana/Nielsen) sans colonne marque : non lisible à plat.
-  if (looksLikeCrossTabReport(wb) && idx.brand < 0) {
+  if (!pivoted && looksLikeCrossTabReport(wb) && idx.brand < 0) {
     throw new Error(
       locale === 'fr'
         ? `« ${fileName} » ressemble à un rapport panel croisé (Circana / NielsenIQ) : mesure en colonne, périodes (P6…P13) ou semaines et enseignes en colonnes, produits en hiérarchie avec des lignes de total. CatPilot ne sait pas encore lire ce format de façon fiable — aucun planogramme n'est généré, pour ne pas produire un résultat faux. Exportez un tableau « à plat » (une ligne = un produit ; colonnes Marque, EAN, CA, Volume), ou signalez ce fichier pour la prise en charge du format rapport.`
