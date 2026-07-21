@@ -732,6 +732,27 @@ export function parseWorkbook(
     detectedColumns[field] = i >= 0 ? headers[i] : null;
   }
 
+  // Colonnes d'AUDIT planogramme (relevé linéaire) — détectées à part pour ne
+  // pas polluer le mapping des champs panel. Elles activent R9 (linéaire
+  // développé) et R11 (plancher rotation) quand elles existent ; sinon ces
+  // règles ne sont tout simplement pas proposées (aucune donnée inventée).
+  const findAudit = (aliases: string[], anti: string[] = []): number => {
+    const antiN = anti.map(normalize);
+    const hs = headers.map(normalize);
+    for (let i = 0; i < hs.length; i++) {
+      if (!hs[i] || (antiN.length && headerMatches(hs[i], antiN))) continue;
+      if (headerMatches(hs[i], aliases.map(normalize))) return i;
+    }
+    return -1;
+  };
+  const auditIdx = {
+    currentFacings: findAudit(['facings actuels', 'facing actuel', 'facings', 'nb facings', 'nombre de facings', 'current facings']),
+    widthCm: findAudit(['largeur facing', 'largeur du facing', 'largeur', 'facing width', 'width cm', 'largeur cm']),
+    rotation: findAudit(['rotation', 'uvc/mag/sem', 'uvc / mag / sem', 'ros units', 'rotation hebdo', 'ventes uvc/mag/sem']),
+    capacity: findAudit(['capacite par facing', 'capacite facing', 'capacite/facing', 'capacity per facing', 'capacite']),
+    reappro: findAudit(['reappro', 'reappro jours', 'delai reappro', 'delai de reappro', 'lead time', 'replenishment']),
+  };
+
   // AI / manual mapping overrides win over heuristic detection.
   if (overrides) {
     for (const field of Object.keys(COLUMN_ALIASES)) {
@@ -858,6 +879,9 @@ export function parseWorkbook(
     }
     const isNew = idx.isNew >= 0 ? toBool(row[idx.isNew]) : false;
 
+    // Colonnes d'audit (facultatives) : lues seulement si la colonne existe.
+    const auditVal = (i: number): number | undefined => (i >= 0 ? toNumber(row[i]) : undefined);
+
     products.push({
       id: `p${products.length}`,
       brand: brand || 'Sans marque',
@@ -869,6 +893,11 @@ export function parseWorkbook(
       margin,
       price,
       isNew,
+      currentFacings: auditVal(auditIdx.currentFacings),
+      widthCm: auditVal(auditIdx.widthCm),
+      rotationPerWeek: auditVal(auditIdx.rotation),
+      capacityPerFacing: auditVal(auditIdx.capacity),
+      reapproDays: auditVal(auditIdx.reappro),
     });
   }
 
