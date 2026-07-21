@@ -107,11 +107,31 @@ function looksLikeCrossTabReport(wb) {
   return false;
 }
 
+// Rapport « Answers » large (NielsenIQ) : bande de périodes (YTD/MAT/semaines)
+// AU-DESSUS d'une ligne de mesures nommées (Sales Value, Sales Units…), produits
+// en hiérarchie. Non lisible « à plat » (en-tête sur 2 lignes) — pris en charge
+// par pivotWideNamed dans l'app, pas un manque d'alias. Même signature ici.
+const WIDE_PERIOD = /\b(ytd|mat|cam|r12|to date|rolling|moving annual)\b|\bwk ?\d|\bw\/e\b|\bsem(aine)?\b/i;
+function looksLikeWideAnswers(wb) {
+  for (const sn of wb.SheetNames.slice(0, 8)) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, blankrows: false });
+    for (let i = 1; i < Math.min(rows.length, 14); i++) {
+      const meas = (rows[i] || []).map((c) => norm(String(c ?? '')));
+      const hasVal = meas.some((c) => c && detectField([c], 'revenue') >= 0 && !/promo|% ?chg|\bya\b/.test(c));
+      const hasBrand = meas.some((c) => c && (detectField([c], 'brand') >= 0 || c === 'merk' || c === 'marque'));
+      const above = (rows[i - 1] || []).map((c) => String(c ?? '').trim());
+      const band = above.filter((c) => WIDE_PERIOD.test(c)).length;
+      if (hasVal && hasBrand && band >= 3) return true;
+    }
+  }
+  return false;
+}
+
 // Certains exports ont une page de garde (« Sommaire ») : on choisit la
 // feuille dont la ligne d'en-têtes fait matcher le plus de champs.
 function analyzeFile(path) {
   const wb = XLSX.readFile(path);
-  if (looksLikeCrossTabReport(wb)) return { headers: [], report: true };
+  if (looksLikeCrossTabReport(wb) || looksLikeWideAnswers(wb)) return { headers: [], report: true };
   let best = null;
   for (const sn of wb.SheetNames.slice(0, 8)) {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, blankrows: false });

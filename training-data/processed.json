@@ -384,5 +384,9 @@
   "corpus/fr-croise-promo.xlsx": {
     "report": true,
     "at": "2026-07-21"
+  },
+  "corpus/nielsen-answers-multi-enseigne.xlsx": {
+    "report": true,
+    "at": "2026-07-21"
   }
 }

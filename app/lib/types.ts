@@ -27,6 +27,15 @@ export interface ParsedDataset {
   detectedColumns: Record<string, string | null>;
   /** Non-fatal warnings (missing column, rows dropped, …). */
   warnings: string[];
+  /** Enseignes présentes dans le fichier (rapport multi-enseigne). Le
+   *  planogramme se génère toujours pour UNE enseigne à la fois. */
+  enseignes?: string[];
+  /** Enseigne effectivement lue (celle du planogramme courant). */
+  enseigne?: string | null;
+  /** Catégories présentes dans le fichier (un même export peut en mêler). */
+  categories?: string[];
+  /** Catégorie effectivement lue. */
+  category?: string | null;
 }
 
 /** The four allocation strategies. */

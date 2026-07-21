@@ -42,6 +42,25 @@ ces diagnostics dans l'UI (afficher sur/sous-linéarisation, plancher rotation,
 alerte quand deux méthodes divergent — EX10+EX11), élargir le corpus de fichiers
 réels, et calibrer le coefficient de pointe par catégorie/enseigne.
 
+## Formats de fichier lus (couche R5, au 2026-07-21)
+
+| Format | Exemple | État |
+|---|---|---|
+| plat (un produit/ligne) | exports simples FR/EN | lu |
+| long (période en colonne) | NielsenIQ, Male Hair NH | lu (une période de référence) |
+| croisé (mesure + périodes en colonnes) | Circana « Geographies » (un fichier = une enseigne) | lu (niveau marque, CAM, R12 promo) |
+| « Answers » large (période au-dessus de mesures nommées) | NielsenIQ JFM/Vagisil (DrugFood, ASW) | lu (`pivotWideNamed`) |
+
+**Enseigne & catégorie (multi-enseigne).** Les exports NielsenIQ « Answers »
+empilent PLUSIEURS enseignes (colonne « Markets ») et parfois plusieurs
+catégories (GROEP) dans la même feuille. On ne lit JAMAIS tout confondu (somme
+fausse) : `parseWorkbook` expose `enseignes`/`categories` et lit UNE enseigne +
+UNE catégorie (choisies via `select`, sinon la première réelle). Les fichiers
+Circana, eux, sont un-fichier-par-enseigne (l'enseigne = le fichier). Vérifié :
+DrugFood → SM/D/Overig Retail / HAARKLEURMIDDELEN, JUST_FOR_MEN dominant,
+Σ marques = total catégorie ; override Kruidvat/Etos OK ; CA = « Sales Value »
+(jamais « Any Promo » ni « YA » ni « Sales Units »).
+
 ## Ordre proposé (à valider par François)
 
 1. **Brique 1 — Dictionnaire + désambiguïsation (R1, R2, R3, R8).** Adopter les
