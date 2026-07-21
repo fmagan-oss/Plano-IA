@@ -17,7 +17,7 @@
       "Ventes valeur €",
       "Qté"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/en-npd.xlsx": {
     "headers": [
@@ -27,7 +27,7 @@
       "Units",
       "NPD"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/en-supplier.xlsx": {
     "headers": [
@@ -37,7 +37,7 @@
       "Total Units",
       "Category"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/en-vendor.xlsx": {
     "headers": [
@@ -47,7 +47,7 @@
       "Unit Sales",
       "Avg Price"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-casse-accents.xlsx": {
     "headers": [
@@ -57,7 +57,7 @@
       "QTE",
       "NOUVEAUTE"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-colonnes-parasites.xlsx": {
     "headers": [
@@ -69,7 +69,7 @@
       "Qté",
       "Commentaire"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-csv-pv.csv": {
     "headers": [
@@ -79,7 +79,7 @@
       "UVC",
       "Prix moyen"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-desig-point.xlsx": {
     "headers": [
@@ -89,7 +89,7 @@
       "Ventes valeur €",
       "Qté"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-entetes-ligne3.xlsx": {
     "headers": [
@@ -99,7 +99,7 @@
       "Ventes valeur",
       "Ventes volume"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-marche-segment.xlsx": {
     "headers": [
@@ -109,7 +109,7 @@
       "Quantités",
       "Marché"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-mq-exact.xlsx": {
     "headers": [
@@ -118,7 +118,7 @@
       "Chiffre d’affaires",
       "Unités"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-pv-moyen.xlsx": {
     "headers": [
@@ -129,7 +129,7 @@
       "PV moyen",
       "Marché"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-ref-point.xlsx": {
     "headers": [
@@ -139,7 +139,7 @@
       "Qtés vendues",
       "Segment"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-uvc.xlsx": {
     "headers": [
@@ -149,7 +149,7 @@
       "Nb UVC",
       "PV TTC"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/en-iri-classic.xlsx": {
     "headers": [
@@ -161,7 +161,7 @@
       "Weighted Distribution",
       "Units"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/en-share-trap.xlsx": {
     "headers": [
@@ -173,7 +173,7 @@
       "Unit Sales",
       "% ACV"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-ca-parentheses.xlsx": {
     "headers": [
@@ -182,7 +182,7 @@
       "CA (K€)",
       "Qté"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-categorie-ca-trap.xlsx": {
     "headers": [
@@ -192,7 +192,7 @@
       "Sell-out net",
       "Qté"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-entetes-multilignes.xlsx": {
     "headers": [
@@ -202,7 +202,7 @@
       "Ventes\nvolume",
       "Prix\nmoyen"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-multi-feuilles.xlsx": {
     "headers": [
@@ -212,7 +212,7 @@
       "Qté",
       "Segment"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-pdm-trap.xlsx": {
     "headers": [
@@ -225,7 +225,7 @@
       "DN",
       "DV"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-poids-ca.xlsx": {
     "headers": [
@@ -235,7 +235,7 @@
       "CA HT",
       "Qté"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-csv-milliers.csv": {
     "headers": [
@@ -244,7 +244,7 @@
       "CA HT",
       "Qté"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-ligne-total.xlsx": {
     "headers": [
@@ -253,7 +253,7 @@
       "CA HT",
       "Qté"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/en-net-sales.xlsx": {
     "headers": [
@@ -262,7 +262,7 @@
       "Net Sales",
       "Units Sold"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-montant.xlsx": {
     "headers": [
@@ -271,7 +271,7 @@
       "Montant",
       "Quantité"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-sellout.xlsx": {
     "headers": [
@@ -280,7 +280,7 @@
       "Sell-out valeur",
       "Sell-out volume"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-ventes-euro.xlsx": {
     "headers": [
@@ -289,7 +289,7 @@
       "Ventes (€)",
       "Ventes (UVC)"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-entetes-2-lignes.xlsx": {
     "headers": [
@@ -299,7 +299,7 @@
       "volume",
       "Prix"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/fr-multi-periodes.xlsx": {
     "headers": [
@@ -309,11 +309,11 @@
       "CA P7",
       "Qté P7"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/circana-crosstab-fictif.xlsx": {
     "report": true,
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/EX09_PDM_vs_PDL.xlsx": {
     "headers": [
@@ -322,7 +322,7 @@
       "Facings actuels",
       "Largeur facing (cm)"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/EX10_circularite_CA_facing.xlsx": {
     "headers": [
@@ -332,7 +332,7 @@
       "Facings actuels",
       "Rotation (UVC/mag/sem)"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
   },
   "corpus/EX11_rotation_rupture.xlsx": {
     "headers": [
@@ -344,6 +344,27 @@
       "Capacite par facing (UVC)",
       "Reappro (jours)"
     ],
-    "at": "2026-07-20"
+    "at": "2026-07-21"
+  },
+  "corpus/en-ya-avant-courant.xlsx": {
+    "headers": [
+      "Brand",
+      "Item",
+      "Sales Value YA",
+      "Sales Value",
+      "Sales Units"
+    ],
+    "at": "2026-07-21"
+  },
+  "corpus/fr-manuf-vs-marque-share.xlsx": {
+    "headers": [
+      "Manufacturer",
+      "Brand",
+      "Product",
+      "Value Share",
+      "CA HT",
+      "Qté"
+    ],
+    "at": "2026-07-21"
   }
 }
