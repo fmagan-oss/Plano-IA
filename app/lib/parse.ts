@@ -841,23 +841,36 @@ export function parseWorkbook(
   if (idxEnseigne >= 0 && idxEnseigne !== idx.brand && idxEnseigne !== idx.name) {
     const JUNK = /exported|dataset|copyright|terms|entire dataset|©|reserved|all rights/i;
     const seenE = new Set<string>();
+    // On mesure aussi le POIDS de chaque enseigne (CA de la période de référence)
+    // pour, par défaut, lire la PLUS SIGNIFICATIVE — jamais la première venue (qui
+    // peut être une enseigne minuscule → plan quasi vide).
+    const weightByEnseigne = new Map<string, number>();
     for (let r = headerIdx + 1; r < rows.length; r++) {
       const row = rows[r];
       if (!row) continue;
       const mk = String(row[idxEnseigne] ?? '').trim();
-      if (!mk || seenE.has(mk) || JUNK.test(mk) || TOTAL_RE.test(normalize(mk))) continue;
+      if (!mk || JUNK.test(mk) || TOTAL_RE.test(normalize(mk))) continue;
       if (/^-?\d[\d\s.,%]*$/.test(mk)) continue; // valeur numérique = pas une enseigne
       const hasId =
         (idx.brand >= 0 && String(row[idx.brand] ?? '').trim()) ||
         (idx.ean >= 0 && String(row[idx.ean] ?? '').trim()) ||
         (idx.name >= 0 && String(row[idx.name] ?? '').trim());
       if (!hasId) continue;
-      seenE.add(mk);
-      flatEnseignes.push(mk);
+      if (!seenE.has(mk)) { seenE.add(mk); flatEnseignes.push(mk); }
+      // On ne pèse que les lignes de la période de référence (format long) pour
+      // ne pas additionner plusieurs périodes.
+      const inRef = refPeriodNorm === null || normalize(String(row[idxPeriod] ?? '')) === refPeriodNorm;
+      if (inRef) {
+        const w = idx.revenue >= 0 ? toNumber(row[idx.revenue]) * revenueScale : idx.volume >= 0 ? toNumber(row[idx.volume]) : 1;
+        weightByEnseigne.set(mk, (weightByEnseigne.get(mk) ?? 0) + Math.max(w, 0));
+      }
     }
     // 2 à 40 enseignes distinctes = vraie dimension enseigne ; au-delà, on doute.
     if (flatEnseignes.length >= 2 && flatEnseignes.length <= 40) {
-      flatEnseigne = select?.enseigne && flatEnseignes.includes(select.enseigne) ? select.enseigne : flatEnseignes[0];
+      const biggest = [...weightByEnseigne.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+      flatEnseigne = select?.enseigne && flatEnseignes.includes(select.enseigne)
+        ? select.enseigne
+        : biggest ?? flatEnseignes[0];
       warnings.push(
         locale === 'fr'
           ? `Plusieurs enseignes dans le fichier (colonne « ${headers[idxEnseigne]} »). Le planogramme est généré pour UNE enseigne : « ${flatEnseigne} » (${flatEnseignes.length} disponibles — sélectionnez-en une autre au besoin). Les enseignes ne sont jamais additionnées.`
