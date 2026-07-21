@@ -1,3 +1,8 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CatPilot β — Générateur de plans de rayon</title>
 <style>
 :root{
@@ -298,6 +303,8 @@ html[data-theme="vivid"] tr.tot td{background:#111827}
 .catalert select{display:block;margin-top:6px;width:100%;max-width:420px;padding:7px;border:1.5px solid var(--line);border-radius:8px;font:inherit}
 .catalert .ca-note{font-size:11px;color:var(--mut);margin:8px 0 0}
 </style>
+</head>
+<body>
 <!-- TOPBAR -->
 <header class="top">
   <div class="brand"><span class="dot"></span>CatPilot <span class="beta">BÊTA</span></div>
@@ -1694,3 +1701,5 @@ function localBrain(q){
 window.DEMO_EANS=EANS.map(e=>({...e})); window.DEMO_SHORT={...SHORT};
 buildMarkers(); refreshCtl(); if(document.getElementById("packgrid")) renderPackGrid();
 </script>
+</body>
+</html>
