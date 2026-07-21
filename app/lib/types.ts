@@ -48,6 +48,10 @@ export interface ParsedDataset {
   categories?: string[];
   /** Catégorie effectivement lue. */
   category?: string | null;
+  /** Période effectivement analysée (jamais un mélange de deux périodes). */
+  period?: string | null;
+  /** Périodes disponibles dans le fichier (format long) — base d'un sélecteur. */
+  periods?: string[];
 }
 
 /** The four allocation strategies. */

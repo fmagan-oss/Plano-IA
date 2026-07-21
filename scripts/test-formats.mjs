@@ -27,10 +27,10 @@ const check = (name, ok, detail = '') => {
 
 // Cas : { fichier, enseigne attendue par défaut (ou null), nb produits mini }
 const CASES = [
-  { file: 'training-data/corpus/fr-long-multi-enseigne.xlsx', enseigne: 'Grosse Enseigne', minRefs: 3 },
-  { file: 'training-data/corpus/nielsen-answers-multi-enseigne.xlsx', enseigne: 'Total France', minRefs: 2 },
-  { file: 'training-data/corpus/fr-format-croise.xlsx', enseigne: null, minRefs: 2 },
-  { file: 'training-data/corpus/fr-croise-promo.xlsx', enseigne: null, minRefs: 2 },
+  { file: 'training-data/corpus/fr-long-multi-enseigne.xlsx', enseigne: 'Grosse Enseigne', minRefs: 3, period: true },
+  { file: 'training-data/corpus/nielsen-answers-multi-enseigne.xlsx', enseigne: 'Total France', minRefs: 2, period: true },
+  { file: 'training-data/corpus/fr-format-croise.xlsx', enseigne: null, minRefs: 2, period: true },
+  { file: 'training-data/corpus/fr-croise-promo.xlsx', enseigne: null, minRefs: 2, period: true },
 ];
 
 for (const c of CASES) {
@@ -43,6 +43,7 @@ for (const c of CASES) {
     continue;
   }
   if (c.enseigne) check(`enseigne par défaut = « ${c.enseigne} » (la plus grosse)`, r.enseigne === c.enseigne, `obtenu « ${r.enseigne} »`);
+  if (c.period) check('période analysée exposée (champ de premier plan)', typeof r.period === 'string' && r.period.length > 0, `obtenu « ${r.period} »`);
   check(`≥ ${c.minRefs} références lues`, r.products.length >= c.minRefs, `${r.products.length} lues`);
   // Le plan doit toujours être NON VIDE (le vrai symptôme du bug « un seul visuel »).
   const plano = generatePlanogram(r.products, 'balanced');

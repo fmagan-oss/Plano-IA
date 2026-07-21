@@ -803,6 +803,7 @@ export function parseWorkbook(
   const idxPeriod = detectColumn(headers, PERIOD_ALIASES, {});
   let refPeriodNorm: string | null = null;
   let refPeriodLabel = '';
+  let longPeriods: string[] = [];
   if (idxPeriod >= 0) {
     const keyIdx = idx.ean >= 0 ? idx.ean : idx.name >= 0 ? idx.name : idx.brand;
     const seen = new Map<string, Set<string>>();
@@ -822,6 +823,7 @@ export function parseWorkbook(
     if (allPeriods.size >= 2 && productRepeats) {
       refPeriodLabel = pickReferencePeriod([...allPeriods]);
       refPeriodNorm = normalize(refPeriodLabel);
+      longPeriods = [...allPeriods];
       detectedColumns.period = headers[idxPeriod];
       warnings.push(
         locale === 'fr'
@@ -1026,10 +1028,16 @@ export function parseWorkbook(
     );
   }
 
+  // Période analysée (jamais un mélange de deux périodes) et périodes disponibles
+  // (format long) — champs de premier plan pour l'UI et un futur sélecteur.
+  const analyzedPeriod = pivot?.period ?? wide?.period ?? (refPeriodLabel || null);
+
   return {
     products,
     detectedColumns,
     warnings,
+    ...(analyzedPeriod ? { period: analyzedPeriod } : {}),
+    ...(longPeriods.length > 1 ? { periods: longPeriods } : {}),
     ...(wide
       ? { enseignes: wide.enseignes, enseigne: wide.enseigne, categories: wide.categories, category: wide.category }
       : flatEnseignes.length
