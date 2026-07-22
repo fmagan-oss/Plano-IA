@@ -17,6 +17,7 @@ const SUITES = [
   'test-linear-diagnostic.mjs',
   'test-corpus-smoke.mjs',
   'test-ex12.mjs',
+  'test-official-plan.mjs',
 ];
 
 let failed = 0;
