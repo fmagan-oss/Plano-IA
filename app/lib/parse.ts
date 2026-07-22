@@ -617,6 +617,93 @@ function pickReferencePeriod(distinct: string[]): string {
   return distinct[distinct.length - 1];
 }
 
+/**
+ * Seuil de complétude d'une période : part de couverture requise pour la retenir.
+ * PARAMÈTRE exposé — jamais deviné en silence. Valeur PROVISOIRE (strictement
+ * au-dessus de 73,2 % pour qu'EX12 écarte P7) ; à figer une fois vérifié, sur un
+ * vrai export, ce que « couverture » mesure exactement.
+ */
+export const DEFAULT_PERIOD_COVERAGE_THRESHOLD = 0.8;
+
+/** Une période candidate avec son taux de couverture FOURNI (cas a). `null` =
+ *  information de couverture absente (on ne devine pas). */
+export interface PeriodCoverage {
+  label: string;
+  /** Couverture ∈ [0,1], ou null si l'info n'est pas dans le fichier. */
+  coverage: number | null;
+}
+
+export interface PeriodChoice {
+  /** Période retenue, ou null si aucune période complète (règle d'or). */
+  chosen: string | null;
+  /** Périodes écartées, avec le motif : incomplète (< seuil) ou couverture inconnue. */
+  rejected: { label: string; coverage: number | null; reason: 'incomplete' | 'unknown' }[];
+  /** Motif en clair (toujours renseigné dès qu'une période est écartée ou qu'aucune n'est retenue). */
+  reason: string | null;
+  /** Seuil effectivement appliqué (remonté pour transparence UI). */
+  threshold: number;
+}
+
+function pct(x: number): string {
+  return `${(x * 100).toFixed(1).replace('.', ',')} %`;
+}
+
+/**
+ * EX12 — écarte une période INCOMPLÈTE au lieu de l'utiliser. Ne garde que les
+ * périodes dont la couverture FOURNIE (cas a) atteint le seuil ; signale toute
+ * période écartée avec un motif clair. Si aucune période complète n'est
+ * disponible (toutes incomplètes, ou couverture inconnue) → règle d'or :
+ * `chosen = null` + motif, jamais une période douteuse en silence.
+ *
+ * Ce contrôle ne DÉDUIT jamais l'incomplétude (pas de cas b : une chute de volume
+ * peut être une troncature, une saisonnalité ou un délisting — on ne devine pas).
+ */
+export function selectCompletePeriod(
+  periods: PeriodCoverage[],
+  opts: { threshold?: number } = {}
+): PeriodChoice {
+  const threshold = opts.threshold ?? DEFAULT_PERIOD_COVERAGE_THRESHOLD;
+  const complete: PeriodCoverage[] = [];
+  const rejected: PeriodChoice['rejected'] = [];
+  for (const p of periods) {
+    if (p.coverage == null) rejected.push({ label: p.label, coverage: null, reason: 'unknown' });
+    else if (p.coverage < threshold) rejected.push({ label: p.label, coverage: p.coverage, reason: 'incomplete' });
+    else complete.push(p);
+  }
+
+  const rejectedTxt = rejected
+    .map((r) => r.reason === 'unknown'
+      ? `${r.label} (couverture inconnue)`
+      : `${r.label} (${pct(r.coverage as number)}, incomplète)`)
+    .join(', ');
+
+  if (!complete.length) {
+    return {
+      chosen: null,
+      rejected,
+      threshold,
+      reason: `Aucune période exploitable (seuil ${pct(threshold)}). Écartée(s) : ${rejectedTxt || '—'}. `
+        + `Aucun plan produit : on ne retient jamais une période incomplète ou de couverture inconnue en silence.`,
+    };
+  }
+
+  // Parmi les périodes complètes : la plus récente si datée, sinon la dernière fournie
+  // (le fichier liste les périodes dans l'ordre chronologique).
+  const dated = complete.map((p) => ({ p, k: parsePeriodDate(p.label) })).filter((x) => x.k != null) as { p: PeriodCoverage; k: number }[];
+  const chosen = dated.length
+    ? dated.sort((a, b) => b.k - a.k)[0].p.label
+    : complete[complete.length - 1].label;
+
+  return {
+    chosen,
+    rejected,
+    threshold,
+    reason: rejected.length
+      ? `Période retenue : ${chosen}. Écartée(s) (seuil ${pct(threshold)}) : ${rejectedTxt}.`
+      : null,
+  };
+}
+
 function toNumber(v: unknown): number {
   if (typeof v === 'number') return isFinite(v) ? v : 0;
   if (v == null) return 0;
