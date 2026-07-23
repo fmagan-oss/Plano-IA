@@ -906,7 +906,7 @@ const NPLSTEPS=[0.5,1,2,3,4,5,6];
 function chg(k,d){
   if(k==='wel'){ let i=WELSTEPS.indexOf(S.wel); i=Math.min(WELSTEPS.length-1,Math.max(0,i+d)); S.wel=WELSTEPS[i]; }
   else if(k==='npl'){ let i=NPLSTEPS.indexOf(S.npl); i=Math.min(NPLSTEPS.length-1,Math.max(0,i+d)); S.npl=NPLSTEPS[i]; }
-  else { const[mn,mx,st]=LIMITS[k]; let emx=mx; if(k==='nel'&&!window.PRO) emx=1; S[k]=Math.min(emx,Math.max(mn,S[k]+d*st)); }
+  else { const[mn,mx,st]=LIMITS[k]; S[k]=Math.min(mx,Math.max(mn,S[k]+d*st)); }
   refreshCtl();
 }
 function capPerShelf(){ return Math.floor(S.wel/7.5); }
