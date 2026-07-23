@@ -549,7 +549,7 @@ body.landing-mode #approot{display:none}
         <ul><li>1 élément · de la ½ planche à 6 planches</li><li>Plan de masse + plan au facing</li><li>Copilote embarqué</li><li>Sur catégorie fictive</li></ul>
         <a class="btn ghost" href="javascript:void(0)" onclick="enterApp()">Essayer maintenant</a></div>
       <div class="plan star"><span class="pop">RECOMMANDÉ</span><h3>Pro</h3><div class="price">149 €<small> HT/siège/mois</small></div><div class="per">par siège nominatif · ou 1 490 € HT/siège/an (2 mois offerts)</div>
-        <ul><li>Vos données (BYOD, sous votre licence panel)</li><li>Jusqu'à 4 éléments · scénarios multiples comparés</li><li>Trame de présentation acheteur (PDF / .pptx)</li><li>Copilote IA connectée · 1 pays · 3 catégories</li><li>Sièges nominatifs · chacun sa connexion</li><li>Support expert catégorie</li></ul>
+        <ul><li>Vos données (BYOD, sous votre licence panel)</li><li>Jusqu'à 5 éléments · scénarios multiples comparés</li><li>Trame de présentation acheteur (PDF / .pptx)</li><li>Copilote IA connectée · 1 pays · 3 catégories</li><li>Sièges nominatifs · chacun sa connexion</li><li>Support expert catégorie</li></ul>
         <a class="btn" href="javascript:void(0)" onclick="enterApp()">Démarrer avec la démo</a></div>
       <div class="plan"><h3>Entreprise</h3><div class="price">Sur devis</div><div class="per">multi-pays · équipes</div>
         <ul><li>Multi-pays &amp; multi-utilisateurs</li><li>Connecteurs panel &amp; photos de rayon</li><li>SSO, environnement dédié</li><li>Onboarding &amp; règles métier sur mesure</li></ul>
@@ -591,7 +591,7 @@ body.landing-mode #approot{display:none}
     <a data-p="poffres">Offres</a>
   </nav>
   <div class="right"><span class="period">MAT S26-2026 · France HM+SM</span><span class="demo">DONNÉES DÉMO FICTIVES</span>
-  <button class="chatbtn" id="protoggle" title="Basculer Démo / Pro (simulation)" style="background:var(--acc);border-color:var(--acc)" onclick="setPro(!window.PRO)">Passer en Pro (simulation)</button>
+  <button class="chatbtn" id="protoggle" title="Basculer Démo / Pro (simulation)" style="background:var(--acc);border-color:var(--acc)" onclick="setPro(!window.PRO)">🔓 Passer en Pro (voir la trame)</button>
   <button class="chatbtn" id="openchat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg>Discussion</button></div>
 </header>
 
@@ -788,7 +788,7 @@ body.landing-mode #approot{display:none}
       <ul><li>1 élément · de la ½ planche à 6 planches</li><li>Plan de masse + plan au facing</li><li>Copilote embarqué</li><li class="no">Trame de présentation acheteur</li><li class="no">Vos données (upload actif)</li><li class="no">Export .pptx / .xlsx</li></ul>
       <button class="btn ghost" onclick="alert('Vous y êtes — cet espace est la démo.')">Vous y êtes</button></div>
     <div class="plan star"><span class="pop">RECOMMANDÉ</span><h4>Pro</h4><div class="price" id="proprice">124 €<small> HT/siège/mois</small></div><div class="per" id="prosub">facturé 1 490 € HT/siège/an</div>
-      <ul><li>Vos données (BYOD, sous votre licence panel)</li><li><b>Jusqu'à 4 éléments</b> · scénarios comparés</li><li><b>Trame de présentation acheteur</b> (copier / PDF)</li><li>1 pays · 3 catégories incluses</li><li>Copilote <b>IA connectée</b> (réponses sur vos chiffres)</li><li>Exports .pptx &amp; .xlsx à votre charte</li><li><b>Sièges nominatifs</b> · chacun sa connexion</li><li>Support expert catégorie</li></ul>
+      <ul><li>Vos données (BYOD, sous votre licence panel)</li><li><b>Jusqu'à 5 éléments</b> · scénarios comparés</li><li><b>Trame de présentation acheteur</b> (copier / PDF)</li><li>1 pays · 3 catégories incluses</li><li>Copilote <b>IA connectée</b> (réponses sur vos chiffres)</li><li>Exports .pptx &amp; .xlsx à votre charte</li><li><b>Sièges nominatifs</b> · chacun sa connexion</li><li>Support expert catégorie</li></ul>
       <button class="btn" onclick="document.getElementById('licmodal').classList.add('on')">Activer une licence</button></div>
     <div class="plan"><h4>Entreprise</h4><div class="price">Sur devis</div><div class="per">multi-pays · équipes</div>
       <ul><li>Multi-pays &amp; multi-utilisateurs</li><li>Connecteurs panel &amp; photos de rayon</li><li>SSO, environnement dédié</li><li>Onboarding &amp; règles métier sur mesure</li></ul>
@@ -1126,7 +1126,7 @@ let SIMACTXT="";
 function buildSimac(alloc,used,sc,caTot,caCm,mgCm,by,tg){
   const _card=document.getElementById('simaccard');
   if(!window.PRO){
-    document.getElementById('simacdeck').innerHTML=`<div class="prolock"><div class="lk">🔒 Trame de présentation acheteur</div><p>La présentation prête à dérouler devant l'acheteur — marché, ambition, changements, bénéfices, décision — est réservée à l'offre <b>Pro</b>.</p><button class="btn" onclick="document.getElementById('licmodal').classList.add('on')">Activer une licence Pro</button></div>`;
+    document.getElementById('simacdeck').innerHTML=`<div class="prolock"><div class="lk">🔒 Trame de présentation acheteur</div><p>La présentation prête à dérouler devant l'acheteur — marché, ambition, changements, bénéfices, décision — est réservée à l'offre <b>Pro</b>.</p><button class="btn" onclick="setPro(true)">Voir la trame — passer en Pro (simulation)</button> <button class="btn ghost" onclick="document.getElementById('licmodal').classList.add('on')">Activer une licence</button></div>`;
     if(_card) _card.querySelectorAll('.btn').forEach(b=>{ if(!/licence/i.test(b.textContent)) b.style.display='none'; });
     return;
   }
@@ -1745,7 +1745,7 @@ function setPro(on){
   window.PRO=!!on;
   var badge=document.querySelector('.demo'); var btn=document.getElementById('protoggle');
   if(badge) badge.textContent = on ? 'MODE PRO — SIMULATION BÊTA' : 'DONNÉES DÉMO FICTIVES';
-  if(btn) btn.textContent = on ? 'Revenir en Démo' : 'Passer en Pro (simulation)';
+  if(btn) btn.textContent = on ? '↩ Revenir en Démo' : '🔓 Passer en Pro (voir la trame)';
   var nh=document.getElementById('nelhint'); if(nh) nh.style.display = on ? 'none' : '';
   if(!on && typeof S==='object' && S.nel>1){ S.nel=1; }
   try{ if(typeof refreshCtl==='function') refreshCtl(); }catch(e){}
@@ -1881,13 +1881,13 @@ function localBrain(q){
     const b=snapshot();
     const iEl=q.toLowerCase().search(/[eé]l[eé]ment/), iPl=q.toLowerCase().search(/planche/);
     const nEl=iEl<iPl?+nums[0]:+nums[1], nPl=iEl<iPl?+nums[1]:+nums[0];
-    while(S.nel>1)chg('nel',-1); for(let i=1;i<Math.min(4,nEl);i++)chg('nel',1);
+    while(S.nel>1)chg('nel',-1); for(let i=1;i<Math.min(5,nEl);i++)chg('nel',1);
     while(NPLSTEPS.indexOf(S.npl)>0)chg('npl',-1); while(S.npl<Math.min(6,nPl))chg('npl',1);
     generate(); go(4);
     return {text:`Rayon reconfiguré : **${S.nel} élément(s) × ${nplLabel()} planche(s)** (${totalCapacity()} facings de capacité). ${diffTxt(b,snapshot())}`,act:`meuble reconfiguré · plan régénéré`};
   }
   if(/(passe|mets|met|configure).*(element)/.test(n)&&num){
-    const b=snapshot(); while(S.nel>1)chg('nel',-1); for(let i=1;i<Math.min(4,+num);i++)chg('nel',1);
+    const b=snapshot(); while(S.nel>1)chg('nel',-1); for(let i=1;i<Math.min(5,+num);i++)chg('nel',1);
     generate(); go(4);
     return {text:`Rayon reconfiguré sur **${S.nel} élément${S.nel>1?'s':''}** (${S.nel*Math.floor(S.wel/7.5)*S.npl} facings de capacité). ${diffTxt(b,snapshot())}`,act:`${S.nel} élément(s) · plan régénéré`};
   }
