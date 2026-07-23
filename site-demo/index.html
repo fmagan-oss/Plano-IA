@@ -651,6 +651,14 @@ body.landing-mode #approot{display:none}
       </div>
       <p class="hint">Un <b>élément</b> = un meuble de gondole ; sa largeur est celle de ses planches. Largeurs standard GMS : 100 · 125 · <b>133</b> cm par planche. Capacité d'une planche = largeur ÷ 7,5 cm par facing → <b id="v_cap">17 facings</b> par planche.</p>
     </div>
+    <div class="card" style="margin-top:14px"><h3>Définition du bloc-marque</h3>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div><div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px">Regrouper par</div>
+          <div style="display:flex;gap:8px"><button class="chip on" data-bloc="seg" onclick="setBloc('seg')">Bloc segment</button><button class="chip" data-bloc="brand" onclick="setBloc('brand')">Bloc marque</button></div></div>
+        <div><div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px">Sens des blocs</div>
+          <div style="display:flex;gap:8px"><button class="chip on" data-orient="h" onclick="setOrient('h')">Horizontal</button><button class="chip" data-orient="v" onclick="setOrient('v')">Vertical</button></div></div>
+      </div>
+      <p class="hint">Base du plan de masse : par <b>segment</b> (Barbe, Cheveux…) ou par <b>marque</b>, en bandes <b>horizontales</b> (par planche) ou <b>verticales</b> (colonnes pleine hauteur).</p></div>
     <div class="wnav"><button class="btn ghost" onclick="go(0)">← Retour</button><button class="btn" onclick="go(2)">Continuer → Planches</button></div>
   </section>
 
@@ -1025,26 +1033,10 @@ function render(alloc,tg,cap,totF){
     return (b.score||0)-(a.score||0);
   }));
   /* aplatissement en file de facings par planche (répartis sur éléments) */
-  const shelves=plan.map(keys=>{
-    let q=[]; keys.forEach(k=>buckets[k].forEach(a=>{for(let i=0;i<a.f;i++)q.push(a.e);}));
-    return q;
-  });
-  /* équilibrage descendant : l'excédent d'une planche glisse vers la planche du dessous */
+  /* Agencement piloté par la DÉFINITION DU BLOC-MARQUE : bloc segment ou bloc
+     marque, en bandes verticales ou horizontales (cf. layoutBlocks). */
   const capRow=(S.npl<1?Math.floor(cap*S.npl):cap)*S.nel;
-  for(let i=0;i<plan.length;i++){
-    while(shelves[i].length>capRow){
-      const mv=shelves[i].pop();
-      if(i+1<plan.length){ shelves[i+1].unshift(mv); }
-      else { (shelves._x=shelves._x||[]).push(mv); }
-    }
-  }
-  /* équilibrage remontant : l'excédent résiduel du bas remonte vers la 1re place libre (garanti: total ≤ capacité) */
-  if(shelves._x){
-    for(const mv of shelves._x){
-      for(let i=plan.length-1;i>=0;i--){ if(shelves[i].length<capRow){ shelves[i].push(mv); break; } }
-    }
-    delete shelves._x;
-  }
+  const shelves=layoutBlocks(alloc, plan, capRow, S.blocBy||'seg', S.orient||'h');
   /* rendu HTML par élément */
   const gw=document.getElementById('gwrap'); gw.innerHTML='';
   for(let el=0;el<S.nel;el++){
@@ -2120,6 +2112,48 @@ async function exportPptx(){
   const safe=(cat||'catpilot').replace(/[^\w\dÀ-ÿ -]+/g,'_').slice(0,50);
   try{ await pptx.writeFile({fileName:`CatPilot — ${safe}.pptx`}); }catch(e){ alert('Export impossible : '+e.message); }
 }
+
+</script>
+
+<script>
+/* ===== DÉFINITION DU BLOC-MARQUE : segment/marque × vertical/horizontal ===== */
+function refBrand(e){ return String(e && e.n || '').trim().split(/\s+/)[0] || 'Autre'; }
+function blockKey(e, blocBy){ return blocBy==='brand' ? refBrand(e) : (e && e.seg || 'Autre'); }
+function distribInt(weights,total){ const sum=weights.reduce((a,b)=>a+Math.max(b,0),0)||1; const ex=weights.map(w=>Math.max(w,0)/sum*total); const out=ex.map(x=>Math.floor(x)); let left=total-out.reduce((a,b)=>a+b,0); const ord=ex.map((x,i)=>({i,f:x-Math.floor(x)})).sort((a,b)=>b.f-a.f); for(let k=0;k<ord.length&&left>0;k++){out[ord[k].i]++;left--;} return out; }
+/* Rend un tableau de planches (flat, facings expansés) : chaque marque/segment
+   forme un bloc contigu. Vertical = bande de colonnes sur toutes les planches ;
+   horizontal = bande sur une planche. Best-sellers au niveau des yeux. */
+function layoutBlocks(alloc, plan, capRow, blocBy, orient){
+  const S_=Math.max(1, plan.length);
+  const gm=new Map();
+  (alloc||[]).forEach(a=>{ const k=blockKey(a.e, blocBy); if(!gm.has(k)) gm.set(k,{key:k,refs:[],fac:0}); const g=gm.get(k); g.refs.push(a); g.fac+=(a.f||0); });
+  const blocks=[...gm.values()].sort((x,y)=>y.fac-x.fac);
+  blocks.forEach(b=>b.refs.sort((x,y)=>(y.score||0)-(x.score||0)));
+  const shelves=Array.from({length:S_},()=>[]);
+  let eyeRow=plan.findIndex(p=>p&&p.includes&&p.includes('eyes')); if(eyeRow<0) eyeRow=Math.min(1,S_-1);
+  const rowOrder=[eyeRow,...Array.from({length:S_},(_,i)=>i).filter(i=>i!==eyeRow)];
+  if(orient!=='v'){
+    /* HORIZONTAL : file de facings, blocs contigus, planches remplies yeux d'abord */
+    const seq=[]; blocks.forEach(b=>b.refs.forEach(a=>{ for(let i=0;i<(a.f||0);i++) seq.push(a.e); }));
+    let ri=0;
+    for(const e of seq){ while(ri<rowOrder.length && shelves[rowOrder[ri]].length>=capRow) ri++; if(ri>=rowOrder.length) break; shelves[rowOrder[ri]].push(e); }
+  } else {
+    /* VERTICAL : chaque bloc = bande de colonnes (∝ facings) sur toutes les planches */
+    const widths=distribInt(blocks.map(b=>b.fac), capRow);
+    let kept=blocks.map((b,i)=>({b,w:widths[i]})).filter(x=>x.w>0);
+    if(!kept.length && blocks.length) kept=[{b:blocks[0],w:capRow}];
+    kept.forEach(({b,w})=>{
+      const units=[]; b.refs.forEach(a=>{ for(let i=0;i<(a.f||0);i++) units.push(a.e); });
+      if(!units.length) return;
+      const cap=w*S_, filled=[]; for(let i=0;i<cap;i++) filled.push(units[i%units.length]);
+      let u=0; for(const rr of rowOrder){ for(let c=0;c<w;c++){ shelves[rr].push(filled[u++]); } }
+    });
+  }
+  return shelves;
+}
+/* Toggles UI */
+function setBloc(v){ window.S=window.S||{}; S.blocBy=v; document.querySelectorAll('[data-bloc]').forEach(el=>el.classList.toggle('on', el.getAttribute('data-bloc')===v)); if(window.lastPlan) generate(); }
+function setOrient(v){ window.S=window.S||{}; S.orient=v; document.querySelectorAll('[data-orient]').forEach(el=>el.classList.toggle('on', el.getAttribute('data-orient')===v)); if(window.lastPlan) generate(); }
 
 </script>
 </div><!-- /approot -->
