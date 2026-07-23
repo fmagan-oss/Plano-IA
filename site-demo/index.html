@@ -657,8 +657,10 @@ body.landing-mode #approot{display:none}
           <div style="display:flex;gap:8px"><button class="chip on" data-bloc="seg" onclick="setBloc('seg')">Bloc segment</button><button class="chip" data-bloc="brand" onclick="setBloc('brand')">Bloc marque</button></div></div>
         <div><div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px">Sens des blocs</div>
           <div style="display:flex;gap:8px"><button class="chip on" data-orient="h" onclick="setOrient('h')">Horizontal</button><button class="chip" data-orient="v" onclick="setOrient('v')">Vertical</button></div></div>
+        <div><div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px">Pôle naturalité&nbsp;?</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="chip on" data-nat="0" onclick="setNat(0)">Non</button><button class="chip" data-nat="1" onclick="setNat(1)">Oui</button><span id="natzone" style="display:none;gap:8px"><button class="chip on" data-natzone="cold" onclick="setNatZone('cold')">Zone froide</button><button class="chip" data-natzone="middle" onclick="setNatZone('middle')">Milieu</button></span></div></div>
       </div>
-      <p class="hint">Base du plan de masse : par <b>segment</b> (Barbe, Cheveux…) ou par <b>marque</b>, en bandes <b>horizontales</b> (par planche) ou <b>verticales</b> (colonnes pleine hauteur).</p></div>
+      <p class="hint">Base du plan de masse : par <b>segment</b> (Barbe, Cheveux…) ou par <b>marque</b>, en bandes <b>horizontales</b> (par planche) ou <b>verticales</b> (colonnes pleine hauteur). <b>Pôle naturalité</b> : si activé, le bio est regroupé en un pavé (zone froide ou milieu) ; sinon il reste dans chaque marque.</p></div>
     <div class="wnav"><button class="btn ghost" onclick="go(0)">← Retour</button><button class="btn" onclick="go(2)">Continuer → Planches</button></div>
   </section>
 
@@ -876,6 +878,8 @@ const EANS=[
  {id:"grc",n:"Grizzly Cheveux Châtain",seg:"Cheveux",cls:"comp",br:"conc",prix:8.9,vmh:0.7,ca:1500,mg:27,pdm:3.2,gr:-2.6},
  {id:"mdb",n:"MDD Coloration Homme Brun",seg:"Cheveux",cls:"mdd",br:"mdd",prix:5.9,vmh:1.4,ca:1950,mg:41,pdm:4.2,gr:3.1},
  {id:"mdn",n:"MDD Coloration Homme Noir",seg:"Cheveux",cls:"mdd",br:"mdd",prix:5.9,vmh:0.9,ca:1250,mg:41,pdm:2.7,gr:2.5},
+ {id:"bio1",n:"KolorMen Végétal Barbe Bio",seg:"Barbe",cls:"innov",br:"client",prix:12.5,vmh:1.5,ca:3400,mg:34,pdm:7.4,gr:24.0,nw:1,nat:1},
+ {id:"bio2",n:"KolorMen Naturel Cheveux Sans Ammoniaque",seg:"Cheveux",cls:"innov",br:"client",prix:11.9,vmh:1.2,ca:2600,mg:33,pdm:5.6,gr:19.0,nat:1},
 ];
 const SHORT={bcf:"B.CF",bnr:"B.Noir",bct:"B.Chât",bcc:"B.ChC",bbl:"B.Blond",ccf:"C.CF",cnr:"C.Noir",cct:"C.Chât",gxs:"GX Sh.",gxb:"GX Bd.",itd:"InstaT",grb:"Gz.Brun",grn:"Gz.Noir",grc:"Gz.Chât",mdb:"MDD Br",mdn:"MDD Nr"};
 /* ============ MARQUEURS ============ */
@@ -1041,7 +1045,7 @@ function render(alloc,tg,cap,totF){
   /* Agencement piloté par la DÉFINITION DU BLOC-MARQUE : bloc segment ou bloc
      marque, en bandes verticales ou horizontales (cf. layoutBlocks). */
   const capRow=(S.npl<1?Math.floor(cap*S.npl):cap)*S.nel;
-  const shelves=layoutBlocks(alloc, plan, capRow, S.blocBy||'seg', S.orient||'h');
+  const shelves=layoutBlocks(alloc, plan, capRow, S.blocBy||'seg', S.orient||'h', !!S.natPole, S.natZone||'cold');
   /* rendu HTML par élément */
   const gw=document.getElementById('gwrap'); gw.innerHTML='';
   for(let el=0;el<S.nel;el++){
@@ -1102,7 +1106,7 @@ function buildMasse(alloc,used){
   const agg={};
   alloc.forEach(a=>{
     const e=a.e||EANS.find(x=>x.id===a.id);
-    const key=e.seg+(e.br==='conc'?' (conc.)':e.br==='mdd'?' (MDD)':'');
+    const key=(window.S&&S.natPole&&typeof isNaturel==='function'&&isNaturel(e))?'Pôle naturalité':e.seg+(e.br==='conc'?' (conc.)':e.br==='mdd'?' (MDD)':'');
     agg[key]=agg[key]||{f:0,refs:0,seg:e.seg,br:e.br};
     agg[key].f+=a.f; agg[key].refs++;
   });
@@ -2128,37 +2132,51 @@ function distribInt(weights,total){ const sum=weights.reduce((a,b)=>a+Math.max(b
 /* Rend un tableau de planches (flat, facings expansés) : chaque marque/segment
    forme un bloc contigu. Vertical = bande de colonnes sur toutes les planches ;
    horizontal = bande sur une planche. Best-sellers au niveau des yeux. */
-function layoutBlocks(alloc, plan, capRow, blocBy, orient){
+function isNaturel(e){ return !!(e && (e.nat===1 || /\bbio\b|naturel|v[ée]g[ée]tal|vegan|sans ammoniaque|sans sulfate/i.test(e.n||''))); }
+function layoutBlocks(alloc, plan, capRow, blocBy, orient, natPole, natZone){
   const S_=Math.max(1, plan.length);
-  const gm=new Map();
-  (alloc||[]).forEach(a=>{ const k=blockKey(a.e, blocBy); if(!gm.has(k)) gm.set(k,{key:k,refs:[],fac:0}); const g=gm.get(k); g.refs.push(a); g.fac+=(a.f||0); });
-  const blocks=[...gm.values()].sort((x,y)=>y.fac-x.fac);
-  blocks.forEach(b=>b.refs.sort((x,y)=>(y.score||0)-(x.score||0)));
+  let natRefs=[], mainAlloc=alloc||[];
+  if(natPole){ natRefs=(alloc||[]).filter(a=>isNaturel(a.e)); mainAlloc=(alloc||[]).filter(a=>!isNaturel(a.e)); }
   const shelves=Array.from({length:S_},()=>[]);
   let eyeRow=plan.findIndex(p=>p&&p.includes&&p.includes('eyes')); if(eyeRow<0) eyeRow=Math.min(1,S_-1);
-  const rowOrder=[eyeRow,...Array.from({length:S_},(_,i)=>i).filter(i=>i!==eyeRow)];
+  /* Zone du pôle naturalité : froide = planche du bas ; milieu = planche centrale. */
+  let zoneRow=-1;
+  if(natPole && natRefs.length && S_>1){ zoneRow = (natZone==='middle') ? Math.max(0,Math.round((S_-1)/2)) : S_-1; }
+  const mainRows=[...Array(S_).keys()].filter(r=>r!==zoneRow);
+  const rowOrder=(mainRows.includes(eyeRow)) ? [eyeRow,...mainRows.filter(r=>r!==eyeRow)] : mainRows.slice();
+  const nR=Math.max(1, rowOrder.length);
+  /* blocs principaux (hors naturalité) */
+  const gm=new Map();
+  mainAlloc.forEach(a=>{ const k=blockKey(a.e, blocBy); if(!gm.has(k)) gm.set(k,{key:k,refs:[],fac:0}); const g=gm.get(k); g.refs.push(a); g.fac+=(a.f||0); });
+  const blocks=[...gm.values()].sort((x,y)=>y.fac-x.fac);
+  blocks.forEach(b=>b.refs.sort((x,y)=>(y.score||0)-(x.score||0)));
   if(orient!=='v'){
-    /* HORIZONTAL : file de facings, blocs contigus, planches remplies yeux d'abord */
     const seq=[]; blocks.forEach(b=>b.refs.forEach(a=>{ for(let i=0;i<(a.f||0);i++) seq.push(a.e); }));
     let ri=0;
     for(const e of seq){ while(ri<rowOrder.length && shelves[rowOrder[ri]].length>=capRow) ri++; if(ri>=rowOrder.length) break; shelves[rowOrder[ri]].push(e); }
   } else {
-    /* VERTICAL : chaque bloc = bande de colonnes (∝ facings) sur toutes les planches */
     const widths=distribInt(blocks.map(b=>b.fac), capRow);
     let kept=blocks.map((b,i)=>({b,w:widths[i]})).filter(x=>x.w>0);
     if(!kept.length && blocks.length) kept=[{b:blocks[0],w:capRow}];
     kept.forEach(({b,w})=>{
       const units=[]; b.refs.forEach(a=>{ for(let i=0;i<(a.f||0);i++) units.push(a.e); });
       if(!units.length) return;
-      const cap=w*S_, filled=[]; for(let i=0;i<cap;i++) filled.push(units[i%units.length]);
+      const cap=w*nR, filled=[]; for(let i=0;i<cap;i++) filled.push(units[i%units.length]);
       let u=0; for(const rr of rowOrder){ for(let c=0;c<w;c++){ shelves[rr].push(filled[u++]); } }
     });
+  }
+  /* pôle naturalité : pavé contigu sur la planche de zone */
+  if(zoneRow>=0 && natRefs.length){
+    const nu=[]; natRefs.sort((x,y)=>(y.f||0)-(x.f||0)).forEach(a=>{ for(let i=0;i<(a.f||0);i++) nu.push(a.e); });
+    for(let i=0;i<Math.min(nu.length,capRow);i++) shelves[zoneRow].push(nu[i]);
   }
   return shelves;
 }
 /* Toggles UI */
 function setBloc(v){ window.S=window.S||{}; S.blocBy=v; document.querySelectorAll('[data-bloc]').forEach(el=>el.classList.toggle('on', el.getAttribute('data-bloc')===v)); if(window.lastPlan) generate(); }
 function setOrient(v){ window.S=window.S||{}; S.orient=v; document.querySelectorAll('[data-orient]').forEach(el=>el.classList.toggle('on', el.getAttribute('data-orient')===v)); if(window.lastPlan) generate(); }
+function setNat(v){ window.S=window.S||{}; S.natPole=!!v; document.querySelectorAll('[data-nat]').forEach(el=>el.classList.toggle('on', el.getAttribute('data-nat')===String(v))); const z=document.getElementById('natzone'); if(z) z.style.display = v ? 'inline-flex' : 'none'; if(!S.natZone) S.natZone='cold'; if(window.lastPlan) generate(); }
+function setNatZone(v){ window.S=window.S||{}; S.natZone=v; document.querySelectorAll('[data-natzone]').forEach(el=>el.classList.toggle('on', el.getAttribute('data-natzone')===v)); if(window.lastPlan) generate(); }
 
 </script>
 </div><!-- /approot -->
