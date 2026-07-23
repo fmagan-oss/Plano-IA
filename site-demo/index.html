@@ -620,6 +620,7 @@ body.landing-mode #approot{display:none}
       <div class="pack-actions" style="margin-top:10px">
         <button class="mini" onclick="downloadTemplate()">Télécharger le modèle</button>
         <button class="mini" style="background:var(--line2);color:var(--ink2)" onclick="loadDemo()">Ou explorer avec la catégorie démo</button>
+        <button class="mini" style="background:var(--acc-l);color:var(--acc-d)" onclick="loadNational()">Ou plugger un planogramme national (démo Assouplissants · EAN réels)</button>
       </div>
 
       <!-- VISUEL IA AU TRAVAIL -->
@@ -2177,6 +2178,42 @@ function setBloc(v){ window.S=window.S||{}; S.blocBy=v; document.querySelectorAl
 function setOrient(v){ window.S=window.S||{}; S.orient=v; document.querySelectorAll('[data-orient]').forEach(el=>el.classList.toggle('on', el.getAttribute('data-orient')===v)); if(window.lastPlan) generate(); }
 function setNat(v){ window.S=window.S||{}; S.natPole=!!v; document.querySelectorAll('[data-nat]').forEach(el=>el.classList.toggle('on', el.getAttribute('data-nat')===String(v))); const z=document.getElementById('natzone'); if(z) z.style.display = v ? 'inline-flex' : 'none'; if(!S.natZone) S.natZone='cold'; if(window.lastPlan) generate(); }
 function setNatZone(v){ window.S=window.S||{}; S.natZone=v; document.querySelectorAll('[data-natzone]').forEach(el=>el.classList.toggle('on', el.getAttribute('data-natzone')===v)); if(window.lastPlan) generate(); }
+
+</script>
+
+<script>
+/* ===== PLAN NATIONAL (démo Assouplissants Carrefour, élément 1 — EAN + facings réels) ===== */
+const NAT_RAW=[
+ ["8006530122771","LENOR UNSTOPPABLE AERIEN 19D",1],["8700216328272","UNSTOPPABLE AERIEN 41D",1],
+ ["8700216782388","LENOR UNST FRESH 7X735G",1],["8006530122795","LENOR BEADS LIGHT 0% FRAICHEUR DE COTON 19D",2],
+ ["8006530122825","LENOR BEADS LIGHT 0% FLEUR DE JASMIN 19D",2],["8006530204996","LENOR LIGHT 0% FRAICHEUR DE COTON 71D",4],
+ ["8006530205054","LENOR LIGHT 0% FLEUR DE JASMIN 71D",4],["8006530122726","LENOR BEADS ENVOLEE D'AIR 14D",2],
+ ["8006530122917","LENOR BEADS ENVOLEE D'AIR 19D",2],["8700216328319","LENOR BEADS ENVOLEE D'AIR 41D",2],
+ ["8700216924450","LENOR OCEAN FRSH 4X735G",1],["8006530204606","LENOR COLLECTION ENVOLEE AIR 87D",3],
+ ["8006530204934","LENOR COLLECTION ENVOLEE AIR 71D",2],["8006530204491","LENOR COLLECTION ENVOLEE AIR 42D",3],
+ ["8006530122665","240G LENOR JASMIN MAI 19D",3],["8006530122856","LENOR BEADS AMBRE ET ORCHIDEE 19D",3],
+ ["8700216328289","LENOR BEADS AMBRE ET ORCHIDEE",2],["8006530204385","LENOR COLLECTION AMBRE ET ORCHIDEE 87D",3],
+ ["8006530204903","LENOR COLLECTION AMBRE ET ORCHIDEE 71D",3],["8006530204422","LENOR COLLECTION AMBRE ET ORCHIDEE 42D",3],
+ ["3560071488765","275G PERLE LING VAN COCO CRF",3],["3560071556884","Perles de linge Fraicheur 275g",3],
+ ["8006530150132","LENOR BEADS BALADE EN BORD DE MER",2],["3560071194840","600ML ADOU CONC FRAICH CRF ESS",5]
+];
+function loadNational(){
+  if(typeof EANS==='undefined'){ return; }
+  EANS.length=0;
+  NAT_RAW.forEach(([ean,n,fac],i)=>{
+    const up=n.toUpperCase();
+    const seg = /LIGHT 0%|CONC\b|ADOU CONC/.test(up) ? 'Ultras' : /COLLECTION|OCEAN|UNST FRESH|X735G/.test(up) ? 'Dilués' : 'Parfums de linge';
+    const mdd = /\bCRF\b/.test(up) || (/PERLES DE LINGE/.test(up) && !/LENOR/.test(up));
+    const nat = /LIGHT 0%/.test(up);
+    const cls = mdd?'mdd': nat?'innov': seg==='Parfums de linge'?'hair': seg==='Dilués'?'beard':'comp';
+    EANS.push({ id:'as'+i, n, ean, seg, cls, br: mdd?'mdd':'client', prix: mdd?4.9:6.9, vmh: fac*0.8+0.4, ca: fac*1400+400, mg: mdd?40:30, pdm: fac*2.2, gr:2.0, nat: nat?1:0, facN: fac });
+  });
+  if(typeof SHORT!=='undefined'){ for(const k in SHORT) delete SHORT[k]; EANS.forEach(e=>SHORT[e.id]=e.n); }
+  window.ACTIVECAT="Assouplissants (plan national Carrefour)";
+  window.PACKS={}; if(typeof renderPackGrid==='function') renderPackGrid();
+  document.getElementById('catconfirm')&&(document.getElementById('catconfirm').style.display='none');
+  if(typeof go==='function') go(1);
+}
 
 </script>
 </div><!-- /approot -->
