@@ -287,8 +287,8 @@ html[data-theme="vivid"] tr.tot td{background:#111827}
 
 /* ---- plan de masse ---- */
 .masse{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh1);padding:20px 22px;margin-bottom:16px}
-.massbar{display:flex;height:56px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
-.massbar div{display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.35);min-width:2px}
+.massbar{display:flex;height:260px;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.massbar div{display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.35);min-width:2px;padding:6px;text-align:center;writing-mode:horizontal-tb}
 .masstable{margin-top:12px}
 /* ---- SIMAC ---- */
 .simac{margin-top:16px}
@@ -651,7 +651,7 @@ body.landing-mode #approot{display:none}
       </div>
       <p class="hint">Un <b>élément</b> = un meuble de gondole ; sa largeur est celle de ses planches. Largeurs standard GMS : 100 · 125 · <b>133</b> cm par planche. Capacité d'une planche = largeur ÷ 7,5 cm par facing → <b id="v_cap">17 facings</b> par planche.</p>
     </div>
-    <div class="card" style="margin-top:14px"><h3>Définition du bloc-marque</h3>
+    <div class="card" style="margin-top:14px"><h3>Définition du plan de masse</h3>
       <div style="display:flex;gap:24px;flex-wrap:wrap">
         <div><div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px">Regrouper par</div>
           <div style="display:flex;gap:8px"><button class="chip on" data-bloc="seg" onclick="setBloc('seg')">Bloc segment</button><button class="chip" data-bloc="brand" onclick="setBloc('brand')">Bloc marque</button></div></div>
@@ -675,8 +675,8 @@ body.landing-mode #approot{display:none}
 
   <!-- STEP 4 -->
   <section class="wstep" id="s3" style="display:none">
-    <div class="grid g2">
-      <div class="card"><h3>Marqueurs de construction — pondère ce qui compte</h3>
+    <div class="grid">
+      <div class="card" style="display:none"><h3>Marqueurs de construction — pondère ce qui compte</h3>
         <div id="mklist"></div>
         <p class="hint">Somme des poids : <b id="wsum">100%</b> — plafonnée à 100% (curseurs bloqués au-delà), saisie directe possible. Normalisation min-max sur les 16 EAN puis score composite par référence.</p>
         <div style="margin-top:14px;border:1.5px solid var(--acc);border-radius:12px;padding:13px 14px;background:var(--acc-l)">
@@ -696,15 +696,20 @@ body.landing-mode #approot{display:none}
 
   <!-- STEP 5 -->
   <section class="wstep" id="s4" style="display:none">
+    <div class="card" style="margin-bottom:16px">
+      <h3>Priorité de construction du rayon</h3>
+      <p class="hint" style="margin-top:0;margin-bottom:12px">La 1re extraction est <b>équilibrée</b>. Choisis une priorité pour recalculer le plan — chaque critère est expliqué.</p>
+      <div class="variants" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">
+        <button class="chip on" data-v="equi" style="text-align:left;padding:13px;height:auto;line-height:1.35"><b style="display:block;font-size:13.5px;margin-bottom:3px">Équilibre</b><small style="color:var(--mut);font-weight:500;font-size:11px">Compromis CA / rotation / marge — la lecture rayon la plus lisible.</small></button>
+        <button class="chip" data-v="ca" style="text-align:left;padding:13px;height:auto;line-height:1.35"><b style="display:block;font-size:13.5px;margin-bottom:3px">CA / cm linéaire</b><small style="color:var(--mut);font-weight:500;font-size:11px">Chiffre d'affaires rapporté au cm de linéaire — la productivité pure du rayon.</small></button>
+        <button class="chip" data-v="rot" style="text-align:left;padding:13px;height:auto;line-height:1.35"><b style="display:block;font-size:13.5px;margin-bottom:3px">VMH</b><small style="color:var(--mut);font-weight:500;font-size:11px">Ventes moyennes hebdo (rotation) — limite les ruptures sur les tops.</small></button>
+        <button class="chip" data-v="marge" style="text-align:left;padding:13px;height:auto;line-height:1.35"><b style="display:block;font-size:13.5px;margin-bottom:3px">Marge distributeur</b><small style="color:var(--mut);font-weight:500;font-size:11px">Marge dégagée pour l'enseigne — l'argument rentabilité côté acheteur.</small></button>
+        <button class="chip" data-v="pdm" style="text-align:left;padding:13px;height:auto;line-height:1.35"><b style="display:block;font-size:13.5px;margin-bottom:3px">PDM vol</b><small style="color:var(--mut);font-weight:500;font-size:11px">Part de marché volume — coller au poids réel des références sur le marché.</small></button>
+      </div>
+    </div>
     <div class="result-head">
       <div class="score"><div class="ring" id="ring" style="--p:0"><span id="ringv">—</span></div>
         <div><b style="font-size:15px">Score du plan</b><br><small style="color:var(--mut)" id="scoredesc">couverture de la demande pondérée</small></div></div>
-      <div class="variants">
-        <button class="chip on" data-v="equi">Équilibré</button>
-        <button class="chip" data-v="rot">Priorité rotation</button>
-        <button class="chip" data-v="marge">Priorité marge</button>
-        <button class="chip" data-v="ca">Priorité CA/cm</button>
-      </div>
       <button class="btn ghost" onclick="window.print()">Exporter PDF</button>
     </div>
     <div class="packreveal">
@@ -1176,7 +1181,7 @@ function copySimac(){
 }
 
 /* ============ VARIANTES ============ */
-const VAR={equi:{cacm:28,vmh:24,marge:16,pdm:16,gr:16},rot:{cacm:8,vmh:72,marge:8,pdm:6,gr:6},marge:{cacm:8,vmh:8,marge:72,pdm:6,gr:6},ca:{cacm:72,vmh:10,marge:8,pdm:5,gr:5}};
+const VAR={equi:{cacm:28,vmh:24,marge:16,pdm:16,gr:16},rot:{cacm:8,vmh:72,marge:8,pdm:6,gr:6},marge:{cacm:8,vmh:8,marge:72,pdm:6,gr:6},ca:{cacm:72,vmh:10,marge:8,pdm:5,gr:5},pdm:{cacm:8,vmh:14,marge:6,pdm:66,gr:6}};
 document.querySelector('.variants').addEventListener('click',e=>{
   const c=e.target.closest('.chip'); if(!c)return;
   document.querySelectorAll('.variants .chip').forEach(x=>x.classList.remove('on')); c.classList.add('on');
