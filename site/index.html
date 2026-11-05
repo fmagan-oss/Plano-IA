@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CatPilot — Préparez vos revues de gamme comme un category captain | Category management PGC</title>
+<meta name="description" content="CatPilot fait le travail d'analyse catégorielle — diagnostic, plan de masse, planogramme au facing, part de linéaire en fair share, trame de présentation — et vous le rend en reco argumentée. Vous gagnez les jours de préparation. Démo gratuite.">
+<link rel="canonical" href="https://www.catpilot.fr/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="CatPilot — Préparez vos revues de gamme comme un category captain">
+<meta property="og:description" content="L'analyse catégorielle faite pour vous : plan au facing, PDL en fair share et trame de présentation. Vous gagnez les jours de préparation et gardez la main sur la relation acheteur.">
+<meta property="og:url" content="https://www.catpilot.fr/">
+<meta property="og:locale" content="fr_FR">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+{"@type":"Organization","@id":"https://www.catpilot.fr/#org","name":"CatPilot","url":"https://www.catpilot.fr/","description":"Éditeur du copilote de category management pour industriels PGC FLS."},
+{"@type":"SoftwareApplication","name":"CatPilot","applicationCategory":"BusinessApplication","operatingSystem":"Web","url":"https://www.catpilot.fr/","description":"Logiciel IA de category management : génération de planogrammes au facing, part de linéaire, marqueurs pondérables (CA/cm, VMH, marge), trame de présentation acheteur. Données du client sous sa licence panel (BYOD).","offers":[{"@type":"Offer","name":"Démo","price":"0","priceCurrency":"EUR"},{"@type":"Offer","name":"Pro mensuel (par siège)","price":"149","priceCurrency":"EUR","description":"par siège nominatif et par mois, sans engagement"},{"@type":"Offer","name":"Pro annuel (par siège)","price":"1490","priceCurrency":"EUR","description":"par siège nominatif et par an, deux mois offerts"}],"publisher":{"@id":"https://www.catpilot.fr/#org"}},
+{"@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"Qu'est-ce qu'un planogramme ?","acceptedAnswer":{"@type":"Answer","text":"Un planogramme est la représentation visuelle d'un rayon : il indique, planche par planche, quelles références sont présentes et combien de facings (frontales produit) chacune occupe. En GMS, un facing standard mesure environ 7,5 cm ; le linéaire développé d'une référence est donc son nombre de facings multiplié par 7,5 cm."}},
+{"@type":"Question","name":"Comment calculer une part de linéaire (PDL) ?","acceptedAnswer":{"@type":"Answer","text":"La part de linéaire d'une marque est le linéaire qu'elle occupe divisé par le linéaire total de la catégorie, en centimètres développés ou en facings. Le principe du fair share compare cette PDL à la part de marché valeur : aligner la place au linéaire sur le poids réel des produits, ajusté de leur croissance et de leur rôle, est un argument clé en revue d'enseigne."}},
+{"@type":"Question","name":"Quel logiciel pour créer un planogramme automatiquement ?","acceptedAnswer":{"@type":"Answer","text":"CatPilot génère automatiquement un planogramme au facing à partir des données de vente (panel sell-out, sell-in, e-commerce) : l'utilisateur choisit la catégorie, la taille du meuble (de la demi-planche à 4 éléments) et pondère les marqueurs (CA au cm, rotation VMH, marge, part de marché, croissance) ; l'algorithme alloue les facings par paires et produit le plan de masse, le plan détaillé et la trame de présentation acheteur."}},
+{"@type":"Question","name":"CatPilot fonctionne-t-il avec les données Circana ou NielsenIQ ?","acceptedAnswer":{"@type":"Answer","text":"Oui, en mode BYOD : le client charge ses propres extracts (EAN × enseigne × semaine) sous sa licence panel existante. CatPilot n'achète ni ne revend de données ; le mapping des références est semi-automatique et chaque chiffre publié reste traçable à sa source."}},
+{"@type":"Question","name":"Combien coûte CatPilot ?","acceptedAnswer":{"@type":"Answer","text":"L'espace démo est gratuit et illimité sur une catégorie fictive. La licence Pro est facturée par siège nominatif : 149 € HT par siège et par mois sans engagement, ou 1 490 € HT par siège et par an (deux mois offerts), pour un pays et trois catégories, IA connectée et exports PowerPoint/Excel inclus. Chaque membre se connecte avec sa propre adresse."}},
+{"@type":"Question","name":"À qui s'adresse CatPilot ?","acceptedAnswer":{"@type":"Answer","text":"Aux industriels PGC FLS de 20 à 500 M€ de chiffre d'affaires — directions commerciales, comptes clés et category managers — qui préparent des revues de catégorie face aux enseignes de la grande distribution sans disposer d'une équipe category management dédiée ni des suites logicielles réservées aux grands groupes."}}
+]}]}
+</script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="landing-mode">
+
+<div id="landingpage">
+<header class="top">
+  <div class="brand"><span class="dot"></span>CatPilot <span class="beta">BÊTA</span></div>
+  <nav class="topnav"><a href="#produit">Produit</a><a href="#methode">Méthode</a><a href="#offres">Offres</a><a href="#faq">FAQ</a></nav>
+  <div class="cta"><a class="btn ghost" href="javascript:void(0)" onclick="enterApp()">Se connecter</a><a class="btn" href="javascript:void(0)" onclick="enterApp()">Ouvrir la démo</a></div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Le copilote category management · Industriels PGC</div>
+      <h1>Préparez vos revues de gamme comme un category captain.</h1>
+      <p class="lead">CatPilot fait le travail d'analyse catégorielle — diagnostic, plan de masse, planogramme au facing, part de linéaire en <b>fair share</b> — et vous le rend en <b>reco argumentée, prête à présenter</b>. Vous gagnez les jours de préparation&nbsp;; vous gardez la main sur la relation acheteur.</p>
+      <div class="ctas"><a class="btn big" href="javascript:void(0)" onclick="enterApp()">Ouvrir la démo gratuite</a><a class="btn ghost big" href="#methode">Voir comment ça marche</a></div>
+      <div class="impact">
+        <div class="stat"><div class="n">48 h</div><div class="l">de préparation</div><div class="src">au lieu de trois semaines d'analyse</div></div>
+        <div class="stat"><div class="n">100 %</div><div class="l">de chiffres traçables à leur source</div><div class="src">de l'analyse à la trame acheteur</div></div>
+        <div class="stat"><div class="n">0 €</div><div class="l">de data en plus</div><div class="src">vos extracts, votre licence</div></div>
+      </div>
+      <div class="trust">Pour les industriels PGC de 20 à 500 M€, sans équipe category management. Vos données restent sous votre licence panel (BYOD).</div>
+    </div>
+    <div class="gviz" aria-label="Exemple de planogramme généré">
+      <div class="lab">Plan généré — coloration homme · 133 cm · 4 planches</div>
+      <div class="shelfrow"><span class="f i"></span><span class="f i"></span><span class="f h"></span><span class="f h"></span><span class="f c"></span><span class="f c"></span></div>
+      <div class="shelfrow"><span class="f b"></span><span class="f b"></span><span class="f b"></span><span class="f b"></span><span class="f b"></span><span class="f b"></span></div>
+      <div class="shelfrow"><span class="f h"></span><span class="f h"></span><span class="f c"></span><span class="f m"></span><span class="f m"></span><span class="f m"></span></div>
+      <div class="cap">Socle barbe au niveau des yeux · nouveautés en avant · MDD en bas</div>
+      <div class="badges"><span class="badge">PDL 86 % vs PDM 71 %</span><span class="badge">CA/cm +18 %</span><span class="badge">0 rupture week-end</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="scene" style="padding-top:40px;padding-bottom:40px">
+  <div class="wrap2">
+    <div class="when">La veille de la revue de gamme</div>
+    <div class="scene-q">Le dossier est prêt. <b>Vous avez passé la journée sur votre stratégie</b>, pas sur vos fichiers.</div>
+    <p>Diagnostic, plan de masse, part de linéaire face à la part de marché, trame de présentation&nbsp;: l'analyse est faite et <b>chaque chiffre remonte à sa source</b>. En rendez-vous, quand la question vient, vous avez la réponse — et vous gardez la main sur la discussion.</p>
+  </div>
+</section>
+
+<section class="proof">
+  <div class="wrap">
+    <div class="k">Ils co-construisent CatPilot — programme design partners</div>
+    <div class="logos">
+      <div class="lg">Votre marque ici</div><div class="lg">Design partner</div><div class="lg">Design partner</div><div class="lg">Design partner</div>
+    </div>
+    <p style="font-size:12px;color:var(--mut);margin-top:14px">Nous sélectionnons quelques marques partenaires — catégories non concurrentes — pour co-construire le produit. <a href="mailto:contact@catpilot.fr" style="color:var(--acc-d);font-weight:700">Rejoindre le programme →</a></p>
+  </div>
+</section>
+
+<section id="difference">
+  <div class="wrap">
+    <h2>De vos données à une reco de rayon argumentée</h2>
+    <p class="sub">Trois temps, une seule session : lire la catégorie, construire le rayon, argumenter la reco.</p>
+    <div class="pillars">
+      <div class="pillar"><span class="pn">01</span><h3>Lire la catégorie</h3><p>Parts de marché, prix, dynamique des segments, distribution : la photo nette de votre marché, à partir de vos propres chiffres. Là où l'acheteur vous attend.</p></div>
+      <div class="pillar"><span class="pn">02</span><h3>Bâtir le rayon</h3><p>Un linéaire piloté par la demande : assortiment priorisé, facings alloués selon vos marqueurs — CA au cm, rotation, marge, fair share, croissance. Du plan de masse au facing près.</p></div>
+      <div class="pillar"><span class="pn">03</span><h3>Argumenter la reco</h3><p>La part de linéaire en fair share et la trame de présentation, générées depuis vos chiffres. Vous n'arrivez plus avec un avis — vous arrivez avec un dossier qui se tient.</p></div>
+    </div>
+    <p class="closing">Le category management des grands groupes, à la portée de l'industriel qui n'en a pas l'équipe.</p>
+  </div>
+</section>
+
+<section id="produit">
+  <div class="wrap">
+    <h2>Le travail d'un category captain, en une session</h2>
+    <p class="sub">Un category manager passe 70&nbsp;% de son temps à réconcilier des fichiers. CatPilot fait ce travail — et vous rend les livrables qui appuient votre reco.</p>
+    <div class="cards">
+      <div class="card"><div class="ic">⌕</div><h3>Des chiffres traçables</h3><p>Anti-double-compte, périodes alignées, totaux recalculés. Les chiffres sont <b>calculés, pas « générés »</b> : chacun pointe vers sa source — fichier, onglet, période. Rien à inventer, tout à justifier.</p></div>
+      <div class="card"><div class="ic">▦</div><h3>Du plan de masse au facing</h3><p>Vue macro par blocs, puis planogramme au facing près : paires, socle au niveau des yeux, nouveautés mises en avant, concurrent représenté. De la ½ planche au rayon de 4 éléments.</p></div>
+      <div class="card"><div class="ic">◎</div><h3>La trame de présentation acheteur</h3><p>Marché, ambition chiffrée, ce qui change, bénéfices conso &amp; magasin, décision : une présentation prête à dérouler en rendez-vous — à copier ou en PDF.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="methode" style="padding-top:20px">
+  <div class="wrap">
+    <h2>Comment ça marche</h2>
+    <p class="sub">Sept étapes guidées — vos données en entrée, un rayon défendable en sortie.</p>
+    <div class="steps">
+      <div class="step"><b>Chargez vos données</b><small>Extract panel (Circana, NielsenIQ), sell-in, e-commerce — sous votre licence.</small></div>
+      <div class="step"><b>Confirmez la catégorie</b><small>Mapping EAN semi-automatique, contrôles de fiabilité intégrés.</small></div>
+      <div class="step"><b>Concevez votre plan</b><small>Éléments, cm par planche, nombre de planches — de la ½ planche à 4 éléments.</small></div>
+      <div class="step"><b>Pondérez vos marqueurs</b><small>CA/cm, rotation, marge, fair share, croissance — ou dictez votre angle au copilote.</small></div>
+      <div class="step"><b>Générez, présentez</b><small>Plan de masse, facing, PDL, KPI, trame acheteur — prêts à présenter.</small></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="dark">
+    <h2>Les marqueurs qui définissent le meilleur rayon</h2>
+    <p class="sub">Le savoir-faire d'un category captain, en règles que vous pondérez.</p>
+    <div class="mk">
+      <div><b>CA / cm linéaire</b><small>La productivité valeur — le juge de paix de l'acheteur.</small></div>
+      <div><b>VMH · rotation</b><small>Pilote le réassort et le risque de rupture au facing.</small></div>
+      <div><b>Marge / cm</b><small>L'argument qui fait exister MDD et nouveautés.</small></div>
+      <div><b>Fair share</b><small>La PDL reflète la part de marché — la base d'un rayon juste et défendable.</small></div>
+      <div><b>Croissance</b><small>Le linéaire va à ce qui monte, pas à l'historique.</small></div>
+    </div>
+  </div>
+</section>
+
+<section id="offres">
+  <div class="wrap">
+    <h2>Un tarif simple, pas de surprise</h2>
+    <p class="sub">Démo gratuite pour évaluer. Pro par <b>siège nominatif</b> pour travailler sur vos données — chacun sa connexion, mensuel sans engagement ou annuel avec deux mois offerts.</p>
+    <div class="plans">
+      <div class="plan"><h3>Démo</h3><div class="price">0 €</div><div class="per">catégorie fictive · sans compte</div>
+        <ul><li>1 élément · de la ½ planche à 6 planches</li><li>Plan de masse + plan au facing</li><li>Copilote embarqué</li><li>Sur catégorie fictive</li></ul>
+        <a class="btn ghost" href="javascript:void(0)" onclick="enterApp()">Essayer maintenant</a></div>
+      <div class="plan star"><span class="pop">RECOMMANDÉ</span><h3>Pro</h3><div class="price">149 €<small> HT/siège/mois</small></div><div class="per">par siège nominatif · ou 1 490 € HT/siège/an (2 mois offerts)</div>
+        <ul><li>Vos données (BYOD, sous votre licence panel)</li><li>Jusqu'à 5 éléments · scénarios multiples comparés</li><li>Trame de présentation acheteur (PDF / .pptx)</li><li>Copilote IA connectée · 1 pays · 3 catégories</li><li>Sièges nominatifs · chacun sa connexion</li><li>Support expert catégorie</li></ul>
+        <a class="btn" href="javascript:void(0)" onclick="enterApp()">Démarrer avec la démo</a></div>
+      <div class="plan"><h3>Entreprise</h3><div class="price">Sur devis</div><div class="per">multi-pays · équipes</div>
+        <ul><li>Multi-pays &amp; multi-utilisateurs</li><li>Connecteurs panel &amp; photos de rayon</li><li>SSO, environnement dédié</li><li>Onboarding &amp; règles métier sur mesure</li></ul>
+        <a class="btn ghost" href="mailto:contact@catpilot.fr">Nous contacter</a></div>
+    </div>
+    <span class="demo-note">Bêta — l'espace démo tourne sur des données 100 % fictives ; vos données restent sous votre licence.</span>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <h2>Questions fréquentes</h2>
+    <p class="sub">Les réponses que cherchent les directions commerciales — et les moteurs de recherche.</p>
+    <div class="faq">
+      <details><summary>Qu'est-ce qu'un planogramme ?</summary><div class="a">Un planogramme est la représentation visuelle d'un rayon : il indique, planche par planche, quelles références sont présentes et combien de facings (frontales produit) chacune occupe. En GMS, un facing standard mesure environ 7,5&nbsp;cm ; le linéaire développé d'une référence est donc son nombre de facings × 7,5&nbsp;cm.</div></details>
+      <details><summary>Comment calculer une part de linéaire (PDL) ?</summary><div class="a">La PDL d'une marque est le linéaire qu'elle occupe divisé par le linéaire total de la catégorie, en centimètres développés ou en facings. Le principe du <b>fair share</b> compare cette PDL à la part de marché valeur : aligner la place au linéaire sur le poids réel des produits (ajusté de leur croissance et de leur rôle) est un argument clé en revue d'enseigne.</div></details>
+      <details><summary>Quel logiciel pour créer un planogramme automatiquement ?</summary><div class="a">CatPilot génère un planogramme au facing à partir des données de vente : vous choisissez la catégorie, la taille du meuble (de la demi-planche à 4 éléments) et pondérez les marqueurs (CA au cm, rotation VMH, marge, part de marché, croissance) ; l'algorithme alloue les facings par paires et produit le plan de masse, le plan détaillé et la trame de présentation acheteur.</div></details>
+      <details><summary>CatPilot fonctionne-t-il avec les données Circana ou NielsenIQ ?</summary><div class="a">Oui, en mode BYOD : vous chargez vos extracts (EAN × enseigne × semaine) sous votre licence panel existante. CatPilot n'achète ni ne revend de données ; le mapping des références est semi-automatique et chaque chiffre publié reste traçable à sa source.</div></details>
+      <details><summary>Combien coûte CatPilot ?</summary><div class="a">L'espace démo est gratuit et illimité sur une catégorie fictive. La licence Pro est facturée <b>par siège nominatif</b> : 149&nbsp;€ HT/siège/mois sans engagement, ou 1&nbsp;490&nbsp;€ HT/siège/an (deux mois offerts, soit ≈ 124&nbsp;€/mois), pour un pays et trois catégories, IA connectée et exports PowerPoint/Excel inclus. Chaque membre se connecte avec sa propre adresse — pas de compte partagé.</div></details>
+      <details><summary>À qui s'adresse CatPilot ?</summary><div class="a">Aux industriels PGC FLS de 20 à 500&nbsp;M€ de CA — directions commerciales, comptes clés et category managers — qui préparent des revues de catégorie face aux enseignes sans équipe catman dédiée ni suites logicielles réservées aux grands groupes.</div></details>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div><b>CatPilot</b> — copilote category management · Bêta</div>
+  <div><a href="javascript:void(0)" onclick="enterApp()" style="color:inherit">Démo</a> · <a href="#offres" style="color:inherit">Offres</a> · <a href="mailto:contact@catpilot.fr" style="color:inherit">contact@catpilot.fr</a></div>
+</footer>
+</div>
+<div id="approot">
+<div class="procov" id="procov"><div class="procard"><div class="proh">CatPilot analyse vos données</div><div class="prosub" id="prosub"></div><div class="probar"><i id="probari"></i></div><div class="prosteps" id="prosteps"></div></div></div>
+
+<!-- TOPBAR -->
+<header class="top">
+  <div class="brand"><span class="dot"></span>CatPilot <span class="beta">BÊTA</span></div>
+  <nav class="topnav" id="topnav"><a class="home-link" onclick="goHome()">← Accueil</a>
+    <a data-p="pgen" class="on">Générateur de rayon</a>
+    <a data-p="pana">Analyses catégorie</a>
+    <a data-p="pdata">Données &amp; fiabilité</a>
+    <a data-p="poffres">Offres</a>
+  </nav>
+  <div class="right"><span class="period">MAT S26-2026 · France HM+SM</span><span class="demo">DONNÉES DÉMO FICTIVES</span>
+  <button class="chatbtn" id="protoggle" title="Basculer Démo / Pro (simulation)" style="background:var(--acc);border-color:var(--acc)" onclick="setPro(!window.PRO)">🔓 Passer en Pro (voir la trame)</button>
+  <button class="chatbtn" id="openchat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg>Discussion</button></div>
+</header>
+
+<!-- ============ PAGE GÉNÉRATEUR ============ -->
+<main class="page on" id="pgen">
+  <div class="hero"><h1>Générer un plan de rayon au facing</h1>
+  <p>Sept étapes guidées : la catégorie, vos planogrammes, les planches, les marqueurs qui définissent « le meilleur rayon », puis le plan, l'analyse et la présentation — l'algorithme alloue les facings et rend le planogramme, chaque chiffre restant traçable.</p></div>
+
+  <div class="stepper" id="stepper">
+    <div class="step cur" data-s="0"><span class="n">1</span><span><span class="t">Catégorie</span><span class="s">périmètre &amp; enseigne</span></span></div><div class="rail"></div>
+    <div class="step" data-s="1"><span class="n">2</span><span><span class="t">Planogrammes</span><span class="s">formats de magasin</span></span></div><div class="rail"></div>
+    <div class="step" data-s="2"><span class="n">3</span><span><span class="t">Planches</span><span class="s">par élément</span></span></div><div class="rail"></div>
+    <div class="step" data-s="3"><span class="n">4</span><span><span class="t">Marqueurs</span><span class="s">critères d'optimisation</span></span></div><div class="rail"></div>
+    <div class="step" data-s="4"><span class="n">5</span><span><span class="t">Le plan</span><span class="s">au facing</span></span></div><div class="rail"></div><div class="step" data-s="5"><span class="n">6</span><span><span class="t">L'analyse</span><span class="s">fair share &amp; productivité</span></span></div><div class="rail"></div><div class="step" data-s="6"><span class="n">7</span><span><span class="t">La présentation</span><span class="s">à télécharger</span></span></div>
+  </div>
+
+  <!-- STEP 1 -->
+  <section class="wstep" id="s0">
+    <div class="stepintro"><div class="badge">1</div><div>
+      <h2>Par où commencer&nbsp;?</h2>
+      <p>CatPilot part de vos chiffres. Déposez un extract panel, ou explorez d'abord sur des données de démonstration — le parcours est identique.</p>
+    </div></div>
+    <div class="demobar"><div class="db-txt"><span class="db-tag">Démonstration</span><b>Première visite&nbsp;? Découvrez CatPilot sans fichier.</b><small>Catégorie fictive, 18 références. Le parcours complet en 2 minutes.</small></div><button class="db-btn" onclick="loadDemo()">Lancer la démonstration →</button></div>
+<div class="entry-grid onecol">
+      <div class="entry-main">
+        <label for="rawfile" class="dropbig" id="droplabel">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="var(--acc)" stroke-width="2"><path d="M12 16V4m0 0L7 9m5-5 5 5M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>
+          <span><b style="font-size:16px;display:block;margin-bottom:4px">Déposez votre extract, ou cliquez pour choisir</b>
+          <small style="color:var(--mut);font-size:12.5px">Excel (.xlsx) ou CSV — EAN&nbsp;× enseigne&nbsp;× période, ou une simple liste de références.</small></span>
+        </label>
+        <input type="file" id="rawfile" accept=".csv,.xlsx,.xls,.tsv,.zip" style="display:none">
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+          <button class="mini" onclick="downloadTemplate()">Télécharger le modèle</button>
+          <span style="font-size:11.5px;color:var(--mut)">Vos données restent sur votre poste.</span>
+        </div>
+        <div class="outcome">
+          <div class="ttl">Ce que vous obtiendrez</div>
+          <ul>
+            <li><b>Le plan de rayon</b>Plan de masse et planogramme au facing près</li>
+            <li><b>L'analyse</b>Part de linéaire, fair&nbsp;share, productivité au cm</li>
+            <li><b>La trame acheteur</b>Une présentation prête à dérouler</li>
+          </ul>
+        </div>
+      </div>
+      <div class="entry-side">
+        <button class="optcard" data-removed="demo" style="display:none" onclick="loadDemo()">
+          <span class="tag">Sans fichier</span>
+          <b>Explorer la catégorie de démonstration</b>
+          <small>Coloration homme, 18 références fictives. Idéal pour découvrir le parcours en 2&nbsp;minutes.</small>
+        </button>
+        <button class="optcard" data-removed="nat" style="display:none" onclick="loadNational()">
+          <span class="tag">EAN réels</span>
+          <b>Auditer un planogramme national</b>
+          <small>Assouplissants Carrefour — positions extraites d'un plan réel. Compare le linéaire à la performance.</small>
+        </button>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <!-- VISUEL IA AU TRAVAIL -->
+      <div class="ai-work" id="aiwork" style="display:none">
+        <div class="ai-spin"></div>
+        <div class="ai-steps" id="aisteps"></div>
+      </div>
+
+      <!-- CONFIRMATION CATÉGORIE -->
+      <div class="cat-confirm" id="catconfirm" style="display:none">
+        <div class="cc-head"><span class="cc-badge">Catégorie détectée</span></div>
+        <div class="cc-name" id="ccname">—</div>
+        <div class="cc-meta" id="ccmeta"></div>
+        <div class="cc-fams" id="ccfams"></div>
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+          <button class="btn" onclick="confirmCategory()">Confirmer et poursuivre →</button>
+          <button class="btn ghost" onclick="resetUpload()">Changer de fichier</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="wstep" id="s1" style="display:none">
+  <div class="stepintro"><div class="badge">2</div><div><h2>Vos planogrammes</h2>
+    <p>Un rayon existe en plusieurs tailles selon le magasin. Décrivez chaque version — CatPilot génèrera un plan pour chacune. <b>De 1 à 5 éléments par planogramme.</b></p></div></div>
+  <div class="card">
+    <div class="plans-list" id="planslist"></div>
+    <button class="mini addplan" id="addplanbtn" onclick="addPlan()">+ Ajouter un planogramme</button>
+    <div class="wsub">Largeur d'un élément — identique sur tous les plans</div>
+    <div class="numctl inline"><button onclick="chg('wel',-1)">−</button><div class="val"><span id="v_wel">133</span><small>cm / planche</small></div><button onclick="chg('wel',1)">+</button></div>
+    <div class="hint" id="capline1"></div>
+  </div>
+  <div class="wnav"><button class="btn ghost" onclick="go(0)">← Retour</button><button class="btn" onclick="go(2)">Continuer → Planches</button></div>
+</section>
+
+  <!-- STEP 3 -->
+  <section class="wstep" id="s2" style="display:none">
+  <div class="stepintro"><div class="badge">3</div><div><h2>Combien de planches ?</h2>
+    <p>Le nombre de niveaux fixe la capacité — et le niveau des yeux, l'emplacement le plus vendeur du meuble.</p></div></div>
+  <div class="card">
+    <label class="chk"><input type="checkbox" id="npluniform" checked onchange="toggleUniform()"><span>Le même nombre de planches sur tous les plans</span></label>
+    <div id="planchesctl"></div>
+    <div class="hint" id="capline2"></div>
+  </div>
+  <div class="wnav"><button class="btn ghost" onclick="go(1)">← Retour</button><button class="btn" onclick="go(3)">Continuer → Marqueurs</button></div>
+</section>
+
+  <!-- STEP 4 -->
+  <section class="wstep" id="s3" style="display:none">
+    <div class="stepintro"><div class="badge">4</div><div><h2>Vos règles merchandising</h2><p>Les contraintes d'implantation — parité, minimum de facings — que le plan doit respecter après le score. C'est votre lecture de la catégorie qui pilote l'allocation.</p></div></div>
+    <div class="wizsplit"><div>
+    <div class="grid">
+      <div class="card" style="display:none"><h3>Marqueurs de construction — pondère ce qui compte</h3>
+        <div id="mklist"></div>
+        <p class="hint">Somme des poids : <b id="wsum">100%</b> — plafonnée à 100% (curseurs bloqués au-delà), saisie directe possible. Normalisation min-max sur les 16 EAN puis score composite par référence.</p>
+        <div style="margin-top:14px;border:1.5px solid var(--acc);border-radius:12px;padding:13px 14px;background:var(--acc-l)">
+          <b style="font-size:12.5px;color:var(--acc-d)">Proposer un angle au copilote</b>
+          <p style="font-size:11.5px;color:var(--ink2);margin:4px 0 8px">Décris ta lecture — le copilote la traduit en pondération. Ex : « pousser la marge et protéger les innovations », « priorité rotation pour éviter les ruptures ».</p>
+          <div style="display:flex;gap:8px"><input id="angleinput" placeholder="Ton angle d&#39;analyse…" style="flex:1;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;font:inherit;font-size:13px"><button class="btn" style="padding:9px 14px;font-size:12.5px" onclick="applyAngle()">Appliquer</button></div>
+          <div id="angleout" class="hint" style="display:none;margin-top:8px"></div>
+        </div>
+      </div>
+      <div class="card"><h3>Règles merchandising (contraintes du plan)</h3>
+        <div class="toggles" id="tglist"></div>
+        <p class="hint">Ces règles s'appliquent <b>après</b> le score : elles contraignent l'allocation (parité, minimum) et le placement vertical (zones chaudes/froides).</p>
+      </div>
+    </div>
+    </div><aside class="livecard">
+      <div class="lt">Votre meuble en direct</div>
+      <div class="livemeuble js-livemeuble"></div>
+      <div class="livestats">
+        <div class="livestat"><div class="v js-lvfac">—</div><div class="l">facings disponibles</div></div>
+        <div class="livestat"><div class="v js-lvcm">—</div><div class="l">linéaire développé</div></div>
+      </div>
+      <div class="livenote js-lvnote"></div>
+    </aside></div>
+    <div class="card" style="margin-top:14px" id="planmassecard"><h3>Définition du plan de masse</h3>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div><div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px">Regrouper par</div>
+          <div style="display:flex;gap:8px"><button class="chip on" data-bloc="seg" onclick="setBloc('seg')">Bloc segment</button><button class="chip" data-bloc="brand" onclick="setBloc('brand')">Bloc marque</button></div></div>
+        <div><div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px">Sens des blocs</div>
+          <div style="display:flex;gap:8px"><button class="chip on" data-orient="h" onclick="setOrient('h')">Horizontal</button><button class="chip" data-orient="v" onclick="setOrient('v')">Vertical</button></div></div>
+        <div><div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px">Pôle naturalité&nbsp;?</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="chip on" data-nat="0" onclick="setNat(0)">Non</button><button class="chip" data-nat="1" onclick="setNat(1)">Oui</button><span id="natzone" style="display:none;gap:8px"><button class="chip on" data-natzone="cold" onclick="setNatZone('cold')">Zone froide</button><button class="chip" data-natzone="middle" onclick="setNatZone('middle')">Milieu</button></span></div></div>
+      </div>
+      <p class="hint">Base du plan de masse : par <b>segment</b> (Barbe, Cheveux…) ou par <b>marque</b>, en bandes <b>horizontales</b> (par planche) ou <b>verticales</b> (colonnes pleine hauteur). <b>Pôle naturalité</b> : si activé, le bio est regroupé en un pavé (zone froide ou milieu) ; sinon il reste dans chaque marque.</p></div>
+    <div class="wnav"><button class="btn ghost" onclick="go(2)">← Retour</button><button class="btn big" onclick="runAnalysis()">⚙ Générer le plan de rayon</button></div>
+  </section>
+
+  <!-- STEP 5 -->
+  <section class="wstep" id="s4" style="display:none">
+    <div class="planswitch" id="planswitch"></div>
+<div class="stepintro"><div class="badge">5</div><div>
+      <h2>Votre plan de rayon</h2>
+      <p>Le plan, l'analyse qui le justifie et la trame à présenter. Naviguez entre les trois — tout se recalcule si vous changez de priorité.</p>
+    </div></div>
+    <div class="rsum" id="rsum"></div>
+    <div class="rtabs" role="tablist">
+      <button class="rtab on" data-pane="plan"    onclick="showPane('plan',this)">Le plan</button>
+      <button class="rtab"     data-pane="analyse" onclick="showPane('analyse',this)">L'analyse<span class="c" id="tabcount">5</span></button>
+      <button class="rtab"     data-pane="trame"   onclick="showPane('trame',this)">La trame acheteur</button>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3>Priorité de construction du rayon</h3>
+      <p class="hint" style="margin-top:0;margin-bottom:12px">La 1re extraction est <b>équilibrée</b>. Choisis une priorité pour recalculer le plan — chaque critère est expliqué.</p>
+      <div class="variants" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">
+        <button class="chip on" data-v="equi" style="text-align:left;padding:13px;height:auto;line-height:1.35"><b style="display:block;font-size:13.5px;margin-bottom:3px">Équilibre</b><small style="color:var(--mut);font-weight:500;font-size:11px">Compromis CA / rotation / marge — la lecture rayon la plus lisible.</small></button>
+        <button class="chip" data-v="ca" style="text-align:left;padding:13px;height:auto;line-height:1.35"><b style="display:block;font-size:13.5px;margin-bottom:3px">CA / cm linéaire</b><small style="color:var(--mut);font-weight:500;font-size:11px">Chiffre d'affaires rapporté au cm de linéaire — la productivité pure du rayon.</small></button>
+        <button class="chip" data-v="rot" style="text-align:left;padding:13px;height:auto;line-height:1.35"><b style="display:block;font-size:13.5px;margin-bottom:3px">VMH</b><small style="color:var(--mut);font-weight:500;font-size:11px">Ventes moyennes hebdo (rotation) — limite les ruptures sur les tops.</small></button>
+        <button class="chip" data-v="marge" style="text-align:left;padding:13px;height:auto;line-height:1.35"><b style="display:block;font-size:13.5px;margin-bottom:3px">Marge distributeur</b><small style="color:var(--mut);font-weight:500;font-size:11px">Marge dégagée pour l'enseigne — l'argument rentabilité côté acheteur.</small></button>
+        <button class="chip" data-v="pdm" style="text-align:left;padding:13px;height:auto;line-height:1.35"><b style="display:block;font-size:13.5px;margin-bottom:3px">PDM vol</b><small style="color:var(--mut);font-weight:500;font-size:11px">Part de marché volume — coller au poids réel des références sur le marché.</small></button>
+      </div>
+    </div>
+    <div class="result-head">
+      <div class="score"><div class="ring" id="ring" style="--p:0"><span id="ringv">—</span></div>
+        <div><b style="font-size:15px">Score du plan</b><br><small style="color:var(--mut)" id="scoredesc">couverture de la demande pondérée</small></div></div>
+      <button class="btn ghost" onclick="window.print()">Exporter PDF</button>
+    </div>
+    <div class="packreveal">
+      <button class="packtoggle-btn" id="packrevealbtn" onclick="togglePackReveal()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/></svg>
+        Afficher les vrais packs
+      </button>
+      <div class="packzone" id="packzone" style="display:none;margin-top:12px">
+        <div class="pz-t">Habille ton plan avec tes packs réels</div>
+        <p class="hint" style="margin-top:5px">Le plan connaît déjà les <b>vrais noms produits</b> de ton fichier. Dépose un dossier de <b>PNG détourés</b> nommés par le <b>code de chaque référence</b> — l'app remplace le color coding par le bon pack au bon facing. Un pack non reconnu garde la couleur de son bloc.</p>
+        <div class="pack-actions">
+          <label class="btn" style="padding:9px 14px;font-size:12.5px;cursor:pointer">Déposer les packs<input type="file" id="packfiles" accept="image/png,image/webp,image/jpeg" multiple style="display:none"></label>
+          <button class="mini" onclick="downloadCodes()">Télécharger la liste des codes du plan</button>
+          <label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="usepacks" checked style="accent-color:var(--acc)"> Afficher les packs</label>
+        </div>
+        <div class="pack-grid" id="packgrid"></div>
+      </div>
+    </div>
+    <div class="masse"><h3 style="font-size:13px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--ink2);margin-bottom:12px">Plan de masse — vue macro de la catégorie</h3>
+      <div class="massbar" id="massbar"></div>
+      <table class="masstable" id="masstable"></table>
+      <p class="note">Le plan de masse fixe les blocs et leur poids en linéaire développé avant le détail par référence. Somme des blocs = linéaire du plan.</p></div>
+    <h3 style="font-size:13px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--ink2);margin:2px 0 10px">Plan au facing — détail par référence</h3>
+    <div class="gondola"><div class="gwrap" id="gwrap"></div>
+      <div class="legend"><span><i class="tag" style="background:#C77F1E"></i>Barbe (client)</span><span><i class="tag" style="background:#0E8F8A"></i>Cheveux (client)</span><span><i class="tag" style="background:#6B4E8E"></i>Innovation (client)</span><span><i class="tag" style="background:#8A94A0"></i>Concurrent</span><span><i class="tag" style="background:#3D4B5F"></i>MDD</span></div>
+    </div>
+    <div style="height:16px"></div>
+    <div class="grid">
+      <div class="card"><h3>Part de linéaire &amp; verdict</h3>
+        <div id="pdlzone"></div>
+        <div class="verdict" id="planverdict" style="margin-top:12px"></div></div>
+    </div>
+    <div class="card facingstep">
+      <h3>Exploitez votre plan</h3>
+      <div class="facing-tiles">
+        <button class="facing-tile" onclick="exportFacing()">
+          <span class="ft-ic">⬇</span>
+          <span class="ft-tx"><b>Extraire le plan au facing (CSV)</b><small>Le plan complet, position par position — prêt pour votre outil merch ou l'implantation en magasin.</small></span>
+        </button>
+        <button class="facing-tile" onclick="loadNationalCompare()">
+          <span class="ft-ic">⚖</span>
+          <span class="ft-tx"><b>Comparer au plan national</b><small>Confrontez la reco CatPilot aux facings réels du plan distributeur — écart par écart, par EAN.</small></span>
+        </button>
+      </div>
+      <div id="natmatch"></div>
+    </div>
+<div class="card" id="justifzone" style="margin-top:16px"><h3>Pourquoi ce plan — l'analyse détaillée</h3>
+      <div id="justiftables"></div>
+    </div>
+    <div class="card simac" id="simaccard"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <h3 style="font-size:13px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--ink2);margin:0">Trame de présentation acheteur — prête à dérouler</h3>
+      <div style="display:flex;gap:8px"><button class="btn ghost" style="padding:8px 14px;font-size:12.5px" onclick="copySimac()">Copier le script</button><button class="btn" style="padding:8px 14px;font-size:12.5px" onclick="exportPptx()">📊 Exporter en PowerPoint</button><button class="btn ghost" style="padding:8px 14px;font-size:12.5px" onclick="window.print()">PDF</button><label class="btn ghost" style="padding:8px 14px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center">Trame de l'enseigne<input type="file" accept=".pptx,.potx,image/*" style="display:none" onchange="plugSupplierTrame(this)"></label></div><div style="width:100%"><span id="trameState" style="font-size:11px;color:var(--acc-d)"></span></div></div>
+      <div class="deck" id="simacdeck"></div>
+      <p class="note">Cinq temps — marché, ambition, changements, bénéfices, décision — générés depuis les chiffres du plan. En production : export .pptx à la charte du client.</p></div>
+    <div class="wnav"><button class="btn ghost" onclick="go(3)">← Ajuster les marqueurs</button><button class="btn" onclick="go(5)">Voir l'analyse →</button></div>
+  </section>
+<section class="wstep" id="s5" style="display:none">
+  <div class="stepintro"><div class="badge">6</div><div><h2>L'analyse — pourquoi ce plan</h2>
+    <p>Fair share par marque et par segment, productivité au centimètre, arbitrages. Les cinq lectures qui rendent le rayon défendable devant l'acheteur.</p></div></div>
+  <div id="anazone"></div>
+  <div class="wnav"><button class="btn ghost" onclick="go(4)">← Revenir au plan</button>
+    <button class="btn" onclick="go(6)">Voir la présentation →</button></div>
+</section>
+<section class="wstep" id="s6" style="display:none">
+  <div class="stepintro"><div class="badge">7</div><div><h2>La présentation — prête à dérouler</h2>
+    <p>Le dossier complet à présenter en revue de gamme : le rayon, l'argumentaire en cinq temps, et l'export.</p></div></div>
+  <div id="preszone"></div>
+  <div class="wnav"><button class="btn ghost" onclick="go(5)">← L'analyse</button>
+    <button class="btn big" onclick="exportDeck()">⬇ Télécharger la présentation (PDF)</button></div>
+
+</main>
+
+<!-- ============ PAGE ANALYSES ============ -->
+<main class="page" id="pana">
+  <div class="hero"><h1>Analyses catégorie</h1><p>Le diagnostic qui alimente le générateur — et la mesure d'uplift média selon la méthode run-rate vs période d'activation vs groupe de contrôle.</p></div>
+  <div class="stepintro" style="margin-top:4px"><div class="badge" style="background:var(--ink)">i</div><div><h2>Analyses catégorie</h2><p>La photo de votre marché, telle qu'elle sort des données chargées. Ces chiffres alimentent le générateur et se retrouvent dans la trame acheteur.</p></div></div>
+  <div class="grid g4">
+    <div class="card kpi"><h3>Marché lu</h3><div class="v" id="k_marche">—</div><div class="d" id="k_marche_d"></div><span class="src" id="k_src1" title="calculé depuis le fichier chargé">source</span></div>
+    <div class="card kpi"><h3>Part de marché · votre marque</h3><div class="v" id="k_pdm">—</div><div class="d" id="k_pdm_d"></div><span class="src" title="part de valeur de la marque désignée">source</span></div>
+    <div class="card kpi"><h3>Prix moyen pondéré</h3><div class="v" id="k_prix">—</div><div class="d" id="k_prix_d"></div><span class="src" title="moyenne pondérée par la valeur">source</span></div>
+    <div class="card kpi"><h3>Périmètre analysé</h3><div class="v" id="k_perim">—</div><div class="d" id="k_perim_d"></div><span class="src" title="références et marques lues">source</span></div>
+  </div>
+  <div style="height:16px"></div>
+  <div class="grid g2">
+    <div class="card"><h3>Dynamique segments — CA MAT &amp; croissance</h3><div id="segchart"></div><span class="src" title="SELLOUT_DEMO.xlsx · DATA · MAT S26 vs N-1">source</span></div>
+    <div class="card"><h3>Uplift média — campagne Barbe S18-S24</h3><div id="mediachart"></div>
+      <div class="verdict"><b>Uplift net ≈ +12,4 pts</b> : accélération barbe (21,4% vs run-rate 8,2%) corrigée de la dérive du contrôle (cheveux non médiatisé : 9,0%). Formule : (21,4−8,2)−(9,0−8,2). <span class="src" title="SELLOUT_DEMO.xlsx · hebdo S1-S24">calcul</span></div></div>
+  </div>
+</main>
+
+<!-- ============ PAGE DONNÉES ============ -->
+<main class="page" id="pdata">
+  <div class="hero"><h1>Données &amp; fiabilité</h1><p>Ce que la plateforme consomme pour fonctionner en autonomie — et les garde-fous natifs. Le LLM rédige ; le code calcule.</p></div>
+  <div class="stepintro" style="margin-top:4px"><div class="badge" style="background:var(--ink)">i</div><div><h2>Données &amp; fiabilité</h2><p>Ce que la plateforme consomme, et les contrôles qu'elle applique avant de publier un chiffre. Le LLM rédige&nbsp;; le code calcule.</p></div></div>
+  <div class="grid g2">
+    <div class="card"><h3>Sources requises par catégorie</h3>
+      <table><tr><th>Donnée</th><th>Granularité</th><th>Usage</th><th>Statut démo</th></tr>
+      <tr><td>Panel sell-out (Nielsen/Circana)</td><td>EAN × enseigne × semaine · 104 sem.</td><td>CA, vol., prix, DN → scores</td><td class="okk">FICTIF CHARGÉ</td></tr>
+      <tr><td>Sell-in ERP client</td><td>EAN × mois · unités</td><td>Contrôle volumes (jamais la valeur)</td><td class="okk">FICTIF CHARGÉ</td></tr>
+      <tr><td>Grille marge distributeur</td><td>EAN · tarif + PVC</td><td>Marqueur marge/cm</td><td class="okk">FICTIF CHARGÉ</td></tr>
+      <tr><td>Dimensions produits (GS1)</td><td>EAN · largeur mm</td><td>Facings réels ≠ 7,5 cm forfaitaire</td><td style="color:var(--gold);font-weight:800">V2</td></tr>
+      <tr><td>Photos de rayon</td><td>1-2 / élément / magasin</td><td>Relevé existant auto + contraintes meuble</td><td style="color:var(--gold);font-weight:800">V2</td></tr></table></div>
+    <div class="card"><h3>Garde-fous natifs</h3>
+      <table><tr><th>Contrôle</th><th>Statut</th></tr>
+      <tr><td>Anti-double-compte (agrégats vs composantes)</td><td class="okk">PASSÉ</td></tr>
+      <tr><td>Alignement des fenêtres N vs N-1</td><td class="okk">PASSÉ</td></tr>
+      <tr><td>Recalcul indépendant des totaux (±0,5)</td><td class="okk">PASSÉ</td></tr>
+      <tr><td>Parité des facings & minimum 2/réf</td><td class="okk">ACTIF</td></tr>
+      <tr><td>Traçabilité chiffre → fichier·onglet·période</td><td class="okk">ACTIF</td></tr></table>
+      <p class="note">Règle produit : un chiffre sans source identifiée n'est pas publié.</p></div>
+  </div>
+</main>
+
+<!-- ============ PAGE OFFRES ============ -->
+<main class="page" id="poffres">
+  <div class="hero" style="text-align:center"><h1>Des plans de rayon qui gagnent des facings</h1><p style="margin:6px auto 0">Espace démo gratuit pour évaluer, licence Pro <b>par siège nominatif</b> pour travailler sur vos données — chacun sa connexion, mensuel sans engagement ou annuel avec deux mois offerts.</p></div>
+  <div class="billing"><span class="bopt" data-b="m">Mensuel</span><span class="bopt on" data-b="a">Annuel</span><span class="save">2 mois offerts</span></div>
+  <div class="plans">
+    <div class="plan"><h4>Démo</h4><div class="price">0 €</div><div class="per">catégorie fictive · sans compte</div>
+      <ul><li>1 élément · de la ½ planche à 6 planches</li><li>Plan de masse + plan au facing</li><li>Copilote embarqué</li><li class="no">Trame de présentation acheteur</li><li class="no">Vos données (upload actif)</li><li class="no">Export .pptx / .xlsx</li></ul>
+      <button class="btn ghost" onclick="alert('Vous y êtes — cet espace est la démo.')">Vous y êtes</button></div>
+    <div class="plan star"><span class="pop">RECOMMANDÉ</span><h4>Pro</h4><div class="price" id="proprice">124 €<small> HT/siège/mois</small></div><div class="per" id="prosub">facturé 1 490 € HT/siège/an</div>
+      <ul><li>Vos données (BYOD, sous votre licence panel)</li><li><b>Jusqu'à 5 éléments</b> · scénarios comparés</li><li><b>Trame de présentation acheteur</b> (copier / PDF)</li><li>1 pays · 3 catégories incluses</li><li>Copilote <b>IA connectée</b> (réponses sur vos chiffres)</li><li>Exports .pptx &amp; .xlsx à votre charte</li><li><b>Sièges nominatifs</b> · chacun sa connexion</li><li>Support expert catégorie</li></ul>
+      <button class="btn" onclick="document.getElementById('licmodal').classList.add('on')">Activer une licence</button></div>
+    <div class="plan"><h4>Entreprise</h4><div class="price">Sur devis</div><div class="per">multi-pays · équipes</div>
+      <ul><li>Multi-pays &amp; multi-utilisateurs</li><li>Connecteurs panel &amp; photos de rayon</li><li>SSO, environnement dédié</li><li>Onboarding &amp; règles métier sur mesure</li></ul>
+      <button class="btn ghost" onclick="alert('Contact : à brancher sur votre email commercial.')">Nous contacter</button></div>
+  </div>
+  <p class="note" style="text-align:center;margin-top:16px">Bêta : l&#39;activation et le paiement (Stripe) seront branchés côté serveur — cette page présente l&#39;offre et le parcours.</p>
+</main>
+<!-- MODAL LICENCE -->
+<div class="modal-bg" id="licmodal" onclick="if(event.target===this)this.classList.remove('on')" style="position:fixed;inset:0;background:rgba(10,16,26,.55);display:none;align-items:center;justify-content:center;z-index:70">
+  <div style="background:var(--card);border-radius:16px;max-width:420px;width:92%;padding:24px">
+    <b style="font-size:16px">Activer une licence Pro</b>
+    <p style="font-size:12.5px;color:var(--mut);margin:8px 0 14px">Saisis ta clé (format XXXX-XXXX). En bêta : la clé <b>DEMO-PRO</b> active la simulation.</p>
+    <div style="display:flex;gap:8px"><input id="lickey" placeholder="XXXX-XXXX" style="flex:1;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;background:var(--card);color:var(--ink)"><button class="btn" onclick="activateLic()">Activer</button></div>
+    <div id="licout" class="hint" style="display:none;margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- ============ DRAWER DISCUSSION ============ -->
+<aside class="drawer" id="drawer">
+  <div class="dh"><div><b>Discussion — copilote catégorie</b><br><small style="color:var(--mut);font-size:11px">Ancré sur ton plan en cours · réponses traçables</small></div>
+  <span class="mode" id="chatmode">IA EMBARQUÉE</span><button onclick="document.getElementById('drawer').classList.remove('on')">×</button></div>
+  <div class="dlog" id="dlog"></div>
+  <div class="sugg" id="sugg"></div>
+  <div class="din"><input id="dinput" placeholder="Pose ta question ou donne un ordre…" autocomplete="off"><button id="dsend">→</button></div>
+</aside>
+
+<script src="vendor/xlsx.full.min.js"></script>
+
+<script src="vendor/pptxgen.min.js"></script>
+
+</div><!-- /approot -->
+
+<link rel="stylesheet" href="styles.css">
+
+<script src="app.js"></script>
+</body>
+</html>
