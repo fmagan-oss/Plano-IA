@@ -49,8 +49,42 @@ Règle importante : pour `ventes_valeur`/`ventes_volume`, on prend la colonne **
   et des lignes **produit**. On ne garde que les lignes avec un EAN valide → anti-double-compte
   (règle EX13).
 
-## Prochaine étape
-Porter ce reconnaisseur dans le vrai robot (le lecteur de fichier de CatPilot) et le brancher
-sur le parcours, pour qu'un vrai export produise directement un assortiment propre.
+## Branché dans le robot de la démo (fait)
 
-*(Prototype validé : `robot/recognize_colonnes.py`.)*
+Le reconnaisseur est maintenant **dans le vrai lecteur de la démo** (`site/app.js`, fonction
+`smartIngest`), et rebundlé dans la démo servie (`site-demo/index.html`). Un vrai export
+Nielsen déposé dans la démo produit directement un assortiment propre. Vérifié de bout en bout
+sur les **4 fichiers réels (3 pays)** :
+
+| Fichier | En-tête trouvé | Marché retenu (le plus gros) | SKU lus | Catégorie lue |
+|---|---|---|---|---|
+| F3 France (à plat) | ligne 1 | « Total HYPERS+SUPERS » (sur 12) | 317 | Coloration / capillaire |
+| F1 Benelux Watson | ligne 5 | « ASW Drogisterij » (sur 6) | 36 | Coloration homme 90 % |
+| F2 Benelux Full market | ligne 5 | « SM/D/Overig Retail » (sur 6) | 118 | Coloration homme 88 % |
+| F4 Nordics | ligne 4 | grocery total (sur 61) | 25 | Coloration homme 100 % |
+
+Ce que ça a demandé côté robot (tout vérifié) :
+1. **Lecture robuste** : le lecteur Excel de la démo (SheetJS) ouvre **les 4 fichiers**, y compris
+   les 3 au `styles.xml` cassé — pas besoin de lecteur spécial. (C'est openpyxl, pas SheetJS, qui
+   bloquait.)
+2. **Dictionnaire multi-langue** FR/EN/NL (ajout de `MERK`, `GROEP`, `category (NDH)`, etc.).
+3. **En-tête = ligne qui reconnaît le plus de champs *différents*** (une ligne de périodes
+   répétées ne gagne plus).
+4. **Règle d'or respectée** : on prend la colonne de ventes **de base**, jamais une variante
+   *YA / Promo / %Chg / YTD*.
+5. **EX13 anti-double-compte** : (a) on n'garde que les lignes à **EAN valide** (les lignes
+   « total/segment » sont écartées) ; (b) on lit **une seule géographie** — la plus grosse
+   enseigne — et jamais la somme Total + composants.
+
+## Ce qui reste honnête à améliorer (petites limites)
+- **CA absolu** : sur les fichiers « longs » (produit × période), le CA en k€ est un **ordre de
+  grandeur** (annualisation approchée) ; les **parts (PDM)** — ce qui sert au planogramme — sont
+  justes. À afficher comme tel.
+- **Fichiers Benelux sans libellé produit** : les produits sont identifiés par l'EAN seul ;
+  ~10 % de lignes mal catégorisées (dominante correcte).
+- **Choix d'enseigne** : la démo prend d'office la plus grosse ; le **vrai back-end**
+  (`app/lib/parse.ts`) sait déjà, lui, exposer la liste et laisser choisir (et il gérait déjà
+  le NL et le multi-enseigne). Petit écart de défaut à aligner (back-end = « première réelle »,
+  démo = « la plus grosse » comme le veut la convention CLAUDE.md).
+
+*(Prototype d'origine : `robot/recognize_colonnes.py`. Logique désormais portée dans `site/app.js`.)*

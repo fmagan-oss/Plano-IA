@@ -1859,22 +1859,27 @@ function splitLine(line,sep){ /* gère les guillemets */
 function num(v){ const x=parseFloat((v||'').toString().replace(',','.').replace(/[^0-9.\-]/g,'')); return isFinite(x)?x:0; }
 
 /* ============ INGESTEUR UNIVERSEL (Nielsen/Circana/CSV) ============ */
+/* Dictionnaire multi-langue (FR / EN / NL) : le robot reconnaît un export quel que
+   soit le pays. Validé sur 4 vrais fichiers Nielsen (France, Benelux, Nordics).
+   NB : 'item' est traité en mot entier (voir matchCol) pour ne PAS confondre une
+   colonne produit avec « Price per Sales (ITEMS) ». */
 const COLSYN={
-  product:['reference','référence','item','produit','product','libelle','libellé','description','article','designation','désignation','sku'],
-  brand:['brand','marque'],
-  manuf:['manufacturer','fabricant'],
-  ean:['upc','ean','gencod','code','barcode','gtin'],
-  family:['famille','family','segment'],
-  value:['sales value','ventes valeur','ca_mat','chiffre','turnover','revenue','valeur','ca'],
-  units:['sales units','ventes unite','ventes unité','volume','units','unites','unités','quantite','quantité'],
-  vmh:['vmh','rotation'],
-  dist:['numeric distribution','distribution','distrib'],
-  price:['price per sales unit','prix','price'],
+  product:['reference','référence','item','produit','product','libelle','libellé','description','article','designation','désignation','sku','artikel','omschrijving'],
+  brand:['brand','marque','merk'],
+  manuf:['manufacturer','fabricant','fournisseur','supplier','leverancier'],
+  ean:['upc','ean','gencod','code','barcode','gtin','streepjescode'],
+  family:['famille','family','segment','groep','category','catégorie','categorie','sous type','sous-type','group','ndh'],
+  value:['sales value','ventes valeur','ca_mat','chiffre','turnover','revenue','valeur','ca','waarde','omzet'],
+  units:['sales units','ventes unite','ventes unité','volume','units','unites','unités','quantite','quantité','eenheden','stuks'],
+  vmh:['vmh','rotation','ros value','rate of sale'],
+  dist:['numeric distribution','distribution','distrib','tdp','distributie'],
+  price:['price per sales unit','prix','price','prijs'],
   marge:['marge','margin'],
-  pdm:['pdm','part de marche','part de marché','market share','share'],
+  pdm:['pdm','part de marche','part de marché','market share','share','marktaandeel'],
   growth:['croissance','growth','evolution','évolution','var '],
   innov:['innovation','nouveaute','nouveauté',' new','innov'],
-  period:['periods','période','periode','semaine',' sem','week','date','mois']
+  period:['periods','période','periode','semaine',' sem','week','date','mois','temps','rolling','ytd'],
+  marche:['geographies','geography','markets','marche','marché','enseigne','circuit','retailer','distributeur','geografie']
 };
 /* Les exports FR sont souvent en ISO-8859-1 : lu en UTF-8, "Libellé" devient illisible
    et la colonne produit n'est plus reconnue. On détecte et on relit dans le bon encodage. */
@@ -1886,11 +1891,14 @@ function decodeSmart(buf){
 }
 function normHdr(s){ return String(s||'').replace(/\u00a0/g,' ').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""); }
 function matchCol(hdr,keys,excludeYA){
-  const short=new Set(['ca','dn','dv','pdm','vmh']); // tokens courts → frontière de mot
+  const short=new Set(['ca','dn','dv','pdm','vmh','item']); // tokens courts → frontière de mot (ex. « item » ≠ « ITEMS » dans « Price per Sales (ITEMS) »)
   for(let j=0;j<hdr.length;j++){
     const h=normHdr(hdr[j]);
     if(!h) continue;
-    if(excludeYA && /\bya\b/.test(h)) continue;
+    /* RÈGLE D'OR : pour une métrique de base (ventes valeur/unité, prix…), on ne prend
+       JAMAIS une variante année précédente (YA), promo, % d'évolution ou cumul (YTD).
+       On veut la colonne « de base » (période courante, total). */
+    if(excludeYA && /(\bya\b|promo|chg|ytd|\bindex\b|%)/.test(h)) continue;
     const damaged=h.indexOf('\uFFFD')>=0;
     const hClean=h.replace(/\uFFFD+/g,'');
     const hit=keys.some(k=>{
@@ -1916,7 +1924,7 @@ const CATTAXO=[
   {univ:'DPH',       cat:'rasage',          label:'Rasage',               re:/rasage|rasoir|razor|shav(e|ing)|lame(s)? (de rasoir|x\d)|apr[èe]s[- ]rasage|after[- ]?shave|mousse [àa] raser|gel [àa] raser/i},
   {univ:'DPH',       cat:'depilatoire',     label:'Dépilatoire',          re:/d[ée]pilatoire|[ée]pilation|cire (froide|ti[èe]de)|hair removal/i},
   {univ:'DPH',       cat:'coloration_homme',label:'Coloration homme',     re:/(colorat|teintur|colou?r|anti[- ]gris|grey|gris)[^|]{0,40}(homme|men|barbe|beard|moustache)|(homme|men|barbe|beard|moustache)[^|]{0,40}(colorat|teintur|colou?r|anti[- ]gris|grey)|just for men|men perfect|barbe|beard|moustache|goatee/i},
-  {univ:'DPH',       cat:'coloration_femme',label:'Coloration',           re:/colorat|teintur|colou?rant|nuance|hair colou?r|balayage|d[ée]coloration/i},
+  {univ:'DPH',       cat:'coloration_femme',label:'Coloration',           re:/colorat|teintur|colou?rant|nuance|hair colou?r|haarkleur|haarverf|balayage|d[ée]coloration/i},
   {univ:'DPH',       cat:'capillaire',      label:'Capillaire',           re:/shampo(o)?ing|shampoo|apr[èe]s[- ]shampo|conditioner|laque|gel coiffant|cire coiffante|masque cheveux|soin cheveux/i},
   {univ:'DPH',       cat:'deo',             label:'Déodorant',            re:/d[ée]odorant|deo\b|anti[- ]transpirant|antiperspirant/i},
   {univ:'DPH',       cat:'douche',          label:'Douche & bain',        re:/gel douche|shower|savon|bain moussant|douche cr[èe]me|body wash/i},
@@ -1930,7 +1938,8 @@ const CATTAXO=[
   {univ:'ENTRETIEN', cat:'nettoyants',      label:'Entretien maison',     re:/nettoyant|javel|liquide vaisselle|d[ée]sodorisant|[ée]ponge|sac poubelle|multi[- ]surfaces|d[ée]tergent/i}
 ];
 function inferCategory(item,brand,manuf,famcol){
-  const t=(String(item||'')+' '+String(brand||'')+' '+String(manuf||'')+' '+String(famcol||''));
+  // séparateurs normalisés : « JUST_FOR_MEN » / « hair-colour » doivent matcher comme du texte
+  const t=(String(item||'')+' '+String(brand||'')+' '+String(manuf||'')+' '+String(famcol||'')).replace(/[_./]+/g,' ');
   for(const c of CATTAXO){ if(c.re.test(t)) return c; }
   return null; /* non classé : sera absorbé par la catégorie dominante */
 }
@@ -1940,14 +1949,21 @@ function inferFamily(item,brand,manuf){
   if(/mdd|private label|marque distributeur|eigen merk|hausmarke/.test(t)) return 'mdd';
   return 'hair';
 }
-/* détecte la ligne d'en-tête : score de tokens connus */
+/* Détecte la VRAIE ligne d'en-tête. On ne prend pas la ligne la plus remplie : dans
+   les exports Benelux, une ligne de périodes répétées (« YTD 26 … » × 160 colonnes)
+   serait la plus remplie mais ne décrit qu'UN seul type de champ. On retient donc la
+   ligne qui reconnaît le plus de champs DIFFÉRENTS (produit, marque, valeur, …),
+   départagée par le nombre de cellules remplies (plafonné). Validé France/Benelux/Nordics. */
 function detectHeader(aoa){
   let best=0,bestScore=-1;
-  const flat=Object.values(COLSYN).flat();
+  const fields=Object.keys(COLSYN);
   for(let i=0;i<Math.min(20,aoa.length);i++){
-    let sc=0; const row=aoa[i]||[];
-    for(const c of row){ const h=normHdr(c); if(h && flat.some(k=>h.includes(normHdr(k)))) sc++; }
-    if(sc>bestScore){bestScore=sc;best=i;}
+    const row=aoa[i]||[];
+    let distinct=0;
+    for(const f of fields){ const ex=(f==='value'||f==='units'); if(matchCol(row,COLSYN[f],ex)>=0) distinct++; }
+    let strcells=0; for(const c of row){ if(normHdr(c)) strcells++; }
+    const score=distinct*10+Math.min(strcells,8);
+    if(score>bestScore){bestScore=score;best=i;}
   }
   return {row:best,score:bestScore};
 }
@@ -1955,13 +1971,13 @@ function detectHeader(aoa){
 function smartIngest(aoa, override){
   if(!aoa||!aoa.length) return {ok:false,error:"Fichier vide."};
   const hd=detectHeader(aoa); const H=hd.row; const hdr=aoa[H]||[];
-  const ci=Object.assign({product:-1,brand:-1,manuf:-1,ean:-1,family:-1,value:-1,units:-1,vmh:-1,dist:-1,price:-1,marge:-1,pdm:-1,growth:-1,innov:-1,period:-1,valueYA:-1}, override||{
+  const ci=Object.assign({product:-1,brand:-1,manuf:-1,ean:-1,family:-1,value:-1,units:-1,vmh:-1,dist:-1,price:-1,marge:-1,pdm:-1,growth:-1,innov:-1,period:-1,marche:-1,valueYA:-1}, override||{
     product:matchCol(hdr,COLSYN.product), brand:matchCol(hdr,COLSYN.brand), manuf:matchCol(hdr,COLSYN.manuf),
     ean:matchCol(hdr,COLSYN.ean), family:matchCol(hdr,COLSYN.family),
     value:matchCol(hdr,COLSYN.value,true), units:matchCol(hdr,COLSYN.units,true), vmh:matchCol(hdr,COLSYN.vmh),
     dist:matchCol(hdr,COLSYN.dist,true), price:matchCol(hdr,COLSYN.price,true),
     marge:matchCol(hdr,COLSYN.marge), pdm:matchCol(hdr,COLSYN.pdm), growth:matchCol(hdr,COLSYN.growth,true),
-    innov:matchCol(hdr,COLSYN.innov), period:matchCol(hdr,COLSYN.period),
+    innov:matchCol(hdr,COLSYN.innov), period:matchCol(hdr,COLSYN.period), marche:matchCol(hdr,COLSYN.marche),
     valueYA:matchCol(hdr,['sales value ya','valeur ya','ca ya'])
   });
   // clé produit : reference/item sinon ean
@@ -1970,11 +1986,42 @@ function smartIngest(aoa, override){
   if(keyCol<0 || valCol<0){
     return {ok:false,needManual:true,header:hdr,aoa:aoa,H:H,error:"Colonnes non reconnues automatiquement — indiquez le produit et la valeur.",ci};
   }
+  const eanOK=(row)=>{ if(ci.ean<0) return true; const ev=String(row[ci.ean]==null?'':row[ci.ean]).replace(/\s/g,''); return /^\d{8,14}$/.test(ev); };
+  /* ---- EX13 — UNE SEULE GÉOGRAPHIE ----
+     Un export panel empile souvent plusieurs enseignes/géographies (Total HYPERS+SUPERS,
+     Hypers, Supers, chaque distributeur…). Les additionner double-compte (le total EST déjà
+     la somme de ses composants). Convention CatPilot : on retient UNE géographie, la plus
+     grosse en valeur (« enseigne par défaut = la plus grosse »), et on écarte les autres. */
+  const marCol = ci.marche>=0 ? ci.marche : -1;
+  let chosenMarket=null, nMarkets=0;
+  if(marCol>=0){
+    const mt={};
+    for(let r=H+1;r<aoa.length;r++){
+      const row=aoa[r]||[]; const rk=row[keyCol];
+      if(rk==null||String(rk).trim()===''||!eanOK(row)) continue;
+      const mv=String(row[marCol]==null?'':row[marCol]).trim(); if(!mv) continue;
+      mt[mv]=(mt[mv]||0)+(numFR(row[valCol])||0);
+    }
+    const names=Object.keys(mt); nMarkets=names.length;
+    // garde-fou : ne filtrer que si la colonne est bien une géographie (libellés texte),
+    // jamais une colonne numérique (ex. « market share ») captée par erreur.
+    const textLike=names.filter(n=>!/^-?[\d .,%]+$/.test(n)).length;
+    if(nMarkets>1 && textLike>=names.length*0.6){
+      chosenMarket=names.reduce((a,b)=> mt[b]>mt[a]?b:a, names[0]);
+    }
+  }
   // agrégation par clé produit
-  const agg={}; const perSet=new Set(); let nAgg=0;
+  const agg={}; const perSet=new Set(); let nAgg=0, nGeo=0;
   for(let r=H+1;r<aoa.length;r++){
     const row=aoa[r]||[]; const rawKey=row[keyCol];
     if(rawKey==null||String(rawKey).trim()==='') continue;
+    /* EX13 — ANTI-DOUBLE-COMPTE par l'EAN : si le fichier a une colonne EAN, une vraie
+       référence porte un code à 8–14 chiffres. Les lignes agrégées (« COLORATION HOMME »,
+       sous-totaux de segment…) n'en ont pas → on les écarte, sinon on compterait le total
+       ET ses composants. Fichier à plat France validé : seuls les SKU à EAN valide restent. */
+    if(!eanOK(row)){ nAgg++; continue; }
+    // une seule géographie retenue (voir EX13 ci-dessus)
+    if(chosenMarket!=null && String(row[marCol]==null?'':row[marCol]).trim()!==chosenMarket){ nGeo++; continue; }
     // ignorer les lignes de total/sous-total (Circana : "Total ...", ou hiérarchie catégorie)
     /* ANTI-DOUBLE-COMPTE : écarter toute ligne d'agrégat (total, sous-total, ligne
        CATEGORY d'un export Circana/NielsenIQ, "toutes marques", "marché"…).
@@ -2061,7 +2108,7 @@ function smartIngest(aoa, override){
   const material=catMix.filter(c=> (c.pct>=15 && c.refs>=2) || (c.refs/catRefs*100>=20 && c.refs>=3) );
   const univs=[...new Set(material.map(c=>c.univ))];
   const catAlert = univs.length>1 ? 'univers' : (material.length>1 ? 'categories' : null);
-  return {ok:true, rows, brands, nNew, catMix, material, univs, catAlert, nAgg, nNoVal, scaleLabel:_scaleLabel, mapping:{header:hdr,ci,headerRow:H,aggregated:keys.length<(aoa.length-H-1),nPer,annualized:_annual,scale:_scaleLabel}};
+  return {ok:true, rows, brands, nNew, catMix, material, univs, catAlert, nAgg, nGeo, nNoVal, market:chosenMarket, nMarkets, scaleLabel:_scaleLabel, mapping:{header:hdr,ci,headerRow:H,aggregated:keys.length<(aoa.length-H-1),nPer,annualized:_annual,scale:_scaleLabel,market:chosenMarket,nMarkets}};
 }
 
 /* parsing délimité réutilisable (CSV/TSV) → { ok, rows, error } */
