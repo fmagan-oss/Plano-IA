@@ -2138,7 +2138,7 @@ function parseDelimited(txt){
 function rebuildCatalog(rows, name){
   /* reconstruit l'assortiment moteur (EANS + SHORT) SANS naviguer. name = catégorie active. */
   EANS.length=0;
-  rows.forEach(r=>EANS.push({id:r.id,n:r.n,seg:r.seg,cls:r.cls,br:r.br,prix:r.prix,vmh:r.vmh,ca:r.ca,mg:r.mg,pdm:r.pdm,gr:r.gr,nw:r.nw}));
+  rows.forEach(r=>EANS.push({id:r.id,n:r.n,brand:r.brand,seg:r.seg,cls:r.cls,br:r.br,prix:r.prix,vmh:r.vmh,ca:r.ca,mg:r.mg,pdm:r.pdm,gr:r.gr,nw:r.nw}));
   for(const k in SHORT) delete SHORT[k];
   rows.forEach(r=>{ SHORT[r.id]=(r.n.replace(/^[^ ]+ /,'').split(/\s+/).slice(0,2).join(' ')||r.id).slice(0,8); });
   window.PACKS={}; window.ACTIVECAT=name||"Ma catégorie";
@@ -2477,7 +2477,7 @@ async function exportPptx(){
 
 
 /* ===== DÉFINITION DU BLOC-MARQUE : segment/marque × vertical/horizontal ===== */
-function refBrand(e){ return String(e && e.n || '').trim().split(/\s+/)[0] || 'Autre'; }
+function refBrand(e){ const b=e&&e.brand&&String(e.brand).trim(); return b || String(e && e.n || '').trim().split(/\s+/)[0] || 'Autre'; }
 function blockKey(e, blocBy){ return blocBy==='brand' ? refBrand(e) : (e && e.seg || 'Autre'); }
 function distribInt(weights,total){ const sum=weights.reduce((a,b)=>a+Math.max(b,0),0)||1; const ex=weights.map(w=>Math.max(w,0)/sum*total); const out=ex.map(x=>Math.floor(x)); let left=total-out.reduce((a,b)=>a+b,0); const ord=ex.map((x,i)=>({i,f:x-Math.floor(x)})).sort((a,b)=>b.f-a.f); for(let k=0;k<ord.length&&left>0;k++){out[ord[k].i]++;left--;} return out; }
 /* Rend un tableau de planches (flat, facings expansés) : chaque marque/segment
