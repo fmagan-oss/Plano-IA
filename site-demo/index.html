@@ -1584,11 +1584,12 @@ document.querySelector('.variants').addEventListener('click',e=>{
 /* ============ UPLOAD RAW DATAS (étape 1) ============ */
 /* ---------- UPLOAD unifié : Excel/CSV → visuel IA → confirmation catégorie ---------- */
 window.PENDING=null;
-document.getElementById('rawfile').addEventListener('change',e=>{
-  const file=e.target.files[0]; if(!file) return;
-  document.getElementById('droplabel').classList.add('arm');
+/* lecture d'un fichier — appelée AUSSI BIEN par le clic (input) que par le glisser-déposer */
+function ingestFile(file){
+  if(!file) return;
+  const dl=document.getElementById('droplabel'); if(dl) dl.classList.add('arm');
   const name=file.name.replace(/\.[^.]+$/,'');
-  if(/\.zip$/i.test(file.name)){ document.getElementById('droplabel').classList.remove('arm'); startVisual(null,name,"Fichier ZIP : décompressez-le et déposez directement le fichier Excel (.xlsx) souhaité — par exemple la géographie qui vous intéresse."); return; }
+  if(/\.zip$/i.test(file.name)){ if(dl) dl.classList.remove('arm'); startVisual(null,name,"Fichier ZIP : décompressez-le et déposez directement le fichier Excel (.xlsx) souhaité — par exemple la géographie qui vous intéresse."); return; }
   if(/\.xlsx?$/i.test(file.name)){
     if(typeof XLSX==='undefined'){ startVisual(null,name,"Lecture Excel indisponible hors-ligne — utilisez le modèle CSV (bouton ci-dessus)."); return; }
     const rd=new FileReader();
@@ -1597,13 +1598,27 @@ document.getElementById('rawfile').addEventListener('change',e=>{
       const res=parseSheet(wb);
       startVisual(res.ok?res.rows:null,name,res.ok?null:res.error,res);
     }catch(err){ startVisual(null,name,"Fichier Excel illisible."); } };
+    rd.onerror=()=>startVisual(null,name,"Lecture du fichier impossible (accès refusé par le navigateur).");
     rd.readAsArrayBuffer(file);
   } else {
     const rd=new FileReader();
     rd.onload=()=>{ try{ const txt=decodeSmart(rd.result); const res=parseDelimitedSmart(txt); startVisual(res.ok?res.rows:null,name,res.ok?null:res.error,res); }catch(err){ startVisual(null,name,"Fichier texte illisible."); } };
+    rd.onerror=()=>startVisual(null,name,"Lecture du fichier impossible (accès refusé par le navigateur).");
     rd.readAsArrayBuffer(file);
   }
-});
+}
+document.getElementById('rawfile').addEventListener('change',e=>{ ingestFile(e.target.files && e.target.files[0]); });
+/* GLISSER-DÉPOSER : la zone disait « Déposez votre extract » mais rien n'écoutait le drop.
+   On gère maintenant le dépôt direct du fichier (en plus du clic). */
+(function(){
+  const dz=document.getElementById('droplabel'); if(!dz) return;
+  const stop=e=>{ e.preventDefault(); e.stopPropagation(); };
+  ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{ stop(e); dz.classList.add('arm'); }));
+  ['dragleave','dragend'].forEach(ev=>dz.addEventListener(ev,e=>{ stop(e); dz.classList.remove('arm'); }));
+  dz.addEventListener('drop',e=>{ stop(e); const f=e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(f) ingestFile(f); });
+  // éviter que le navigateur n'ouvre le fichier si on le lâche à côté de la zone
+  ['dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>{ if(!dz.contains(e.target)) e.preventDefault(); },false));
+})();
 /* lecture Excel : première feuille → matrice → réutilise la logique de mapping colonnes */
 function parseSheet(wb){
   /* essayer chaque feuille, garder celle qui donne le meilleur résultat réel */
