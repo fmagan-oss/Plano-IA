@@ -1584,6 +1584,13 @@ document.querySelector('.variants').addEventListener('click',e=>{
 /* ============ UPLOAD RAW DATAS (étape 1) ============ */
 /* ---------- UPLOAD unifié : Excel/CSV → visuel IA → confirmation catégorie ---------- */
 window.PENDING=null;
+/* message « gros fichier » affiché AVANT le traitement bloquant (l'onglet peut se figer). */
+function showPrep(name,mb){
+  const aw=document.getElementById('aiwork'); if(aw) aw.style.display='block';
+  const box=document.getElementById('aisteps');
+  if(box) box.innerHTML='<div style="padding:12px 4px;font-size:13.5px"><b>⏳ Lecture d’un gros fichier ('+mb+' Mo)…</b><br>'+
+    '<span style="color:var(--mut)">Beaucoup de lignes à consolider : le traitement peut prendre jusqu’à une minute et l’onglet peut se figer un instant — c’est normal, laisse faire.</span></div>';
+}
 /* lecture d'un fichier — appelée AUSSI BIEN par le clic (input) que par le glisser-déposer */
 function ingestFile(file){
   if(!file) return;
@@ -1593,11 +1600,19 @@ function ingestFile(file){
   if(/\.xlsx?$/i.test(file.name)){
     if(typeof XLSX==='undefined'){ startVisual(null,name,"Lecture Excel indisponible hors-ligne — utilisez le modèle CSV (bouton ci-dessus)."); return; }
     const rd=new FileReader();
-    rd.onload=()=>{ try{
-      const wb=XLSX.read(new Uint8Array(rd.result),{type:'array'});
-      const res=parseSheet(wb);
-      startVisual(res.ok?res.rows:null,name,res.ok?null:res.error,res);
-    }catch(err){ startVisual(null,name,"Fichier Excel illisible."); } };
+    rd.onload=()=>{
+      const bytes=new Uint8Array(rd.result);
+      const mb=bytes.length/1048576; const big=mb>4;
+      /* dense:true → sheet_to_json ~14× plus rapide sur un gros fichier (289k lignes). */
+      const run=()=>{ try{
+        const wb=XLSX.read(bytes,{type:'array',dense:true});
+        const res=parseSheet(wb);
+        startVisual(res.ok?res.rows:null,name,res.ok?null:res.error,res);
+      }catch(err){ startVisual(null,name,"Fichier Excel illisible (ou trop volumineux pour le navigateur)."); } };
+      /* gros fichier : on affiche un message AVANT le calcul bloquant pour que l'onglet
+         ne paraisse pas « planté » (le traitement synchrone peut figer l'onglet ~30-60 s). */
+      if(big){ showPrep(name, mb.toFixed(0)); setTimeout(run, 60); } else run();
+    };
     rd.onerror=()=>startVisual(null,name,"Lecture du fichier impossible (accès refusé par le navigateur).");
     rd.readAsArrayBuffer(file);
   } else {
@@ -1760,6 +1775,11 @@ function applyManualMap(){
 function confirmCategory(){
   if(!window.PENDING) return;
   let rows=window.PENDING.rows.map(r=>({...r}));
+  /* UNE catégorie par plan (règle d'or) : si le fichier mélange plusieurs catégories et
+     qu'une a été choisie, on ne garde QUE celle-là (+ les réfs non classées, absorbées).
+     Sans ce filtre, un fichier « coloration + shampooing » produisait un plan incohérent. */
+  const cp=document.getElementById('catPick'); const pickCat=cp?cp.value:'';
+  if(pickCat && pickCat!=='__all'){ rows=rows.filter(r=>r.cat===pickCat || !r.cat); }
   const cb=document.getElementById('clientBrand'); const client=cb?cb.value:'';
   const flagNew=document.getElementById('flagNew'); const keepNew=flagNew?flagNew.checked:true;
   if(client){ rows.forEach(r=>{ if(r.brand && r.brand!==client){ r.cls='comp'; r.br='conc'; } }); }
