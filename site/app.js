@@ -504,6 +504,12 @@ function confirmCategory(){
   if(client){ rows.forEach(r=>{ if(r.brand && r.brand!==client){ r.cls='comp'; r.br='conc'; } }); }
   if(!keepNew) rows.forEach(r=>r.nw=0);
   rebuildCatalog(rows, window.PENDING.name);
+  /* le bandeau « démo fictives » n'a plus lieu d'être dès qu'un vrai fichier est chargé :
+     on bascule sur les vraies données (nom du fichier + enseigne lue). */
+  window.REALDATA=true;
+  const mk=(window.PENDING.res&&window.PENDING.res.market)||null;
+  const pl=document.getElementById('periodlabel'); if(pl) pl.textContent=(window.PENDING.name||'Fichier importé')+(mk?' · '+mk:'');
+  const bd=document.getElementById('demobadge'); if(bd){ bd.textContent='VOS DONNÉES'; bd.style.background='#E8F0FF'; bd.style.color='#2E6BFF'; bd.style.borderColor='#2E6BFF'; }
   document.getElementById('catconfirm').style.display='none';
   go(1);
 }
@@ -932,7 +938,7 @@ window.PRO=false;
 function setPro(on){
   window.PRO=!!on;
   var badge=document.querySelector('.demo'); var btn=document.getElementById('protoggle');
-  if(badge) badge.textContent = on ? 'MODE PRO — SIMULATION BÊTA' : 'DONNÉES DÉMO FICTIVES';
+  if(badge) badge.textContent = on ? 'MODE PRO — SIMULATION BÊTA' : (window.REALDATA ? 'VOS DONNÉES' : 'DONNÉES DÉMO FICTIVES');
   if(btn) btn.textContent = on ? '↩ Revenir en Démo' : '🔓 Passer en Pro (voir la trame)';
   var nh=document.getElementById('nelhint'); if(nh) nh.style.display = on ? 'none' : '';
   if(!on && typeof S==='object' && S.nel>1){ S.nel=1; }

@@ -787,7 +787,7 @@ body.landing-mode #approot{display:none}
     <a data-p="pdata">Données &amp; fiabilité</a>
     <a data-p="poffres">Offres</a>
   </nav>
-  <div class="right"><span class="period">MAT S26-2026 · France HM+SM</span><span class="demo">DONNÉES DÉMO FICTIVES</span>
+  <div class="right"><span class="period" id="periodlabel">MAT S26-2026 · France HM+SM</span><span class="demo" id="demobadge">DONNÉES DÉMO FICTIVES</span>
   <button class="chatbtn" id="protoggle" title="Basculer Démo / Pro (simulation)" style="background:var(--acc);border-color:var(--acc)" onclick="setPro(!window.PRO)">🔓 Passer en Pro (voir la trame)</button>
   <button class="chatbtn" id="openchat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg>Discussion</button></div>
 </header>
@@ -1750,6 +1750,12 @@ function confirmCategory(){
   if(client){ rows.forEach(r=>{ if(r.brand && r.brand!==client){ r.cls='comp'; r.br='conc'; } }); }
   if(!keepNew) rows.forEach(r=>r.nw=0);
   rebuildCatalog(rows, window.PENDING.name);
+  /* le bandeau « démo fictives » n'a plus lieu d'être dès qu'un vrai fichier est chargé :
+     on bascule sur les vraies données (nom du fichier + enseigne lue). */
+  window.REALDATA=true;
+  const mk=(window.PENDING.res&&window.PENDING.res.market)||null;
+  const pl=document.getElementById('periodlabel'); if(pl) pl.textContent=(window.PENDING.name||'Fichier importé')+(mk?' · '+mk:'');
+  const bd=document.getElementById('demobadge'); if(bd){ bd.textContent='VOS DONNÉES'; bd.style.background='#E8F0FF'; bd.style.color='#2E6BFF'; bd.style.borderColor='#2E6BFF'; }
   document.getElementById('catconfirm').style.display='none';
   go(1);
 }
@@ -2178,7 +2184,7 @@ window.PRO=false;
 function setPro(on){
   window.PRO=!!on;
   var badge=document.querySelector('.demo'); var btn=document.getElementById('protoggle');
-  if(badge) badge.textContent = on ? 'MODE PRO — SIMULATION BÊTA' : 'DONNÉES DÉMO FICTIVES';
+  if(badge) badge.textContent = on ? 'MODE PRO — SIMULATION BÊTA' : (window.REALDATA ? 'VOS DONNÉES' : 'DONNÉES DÉMO FICTIVES');
   if(btn) btn.textContent = on ? '↩ Revenir en Démo' : '🔓 Passer en Pro (voir la trame)';
   var nh=document.getElementById('nelhint'); if(nh) nh.style.display = on ? 'none' : '';
   if(!on && typeof S==='object' && S.nel>1){ S.nel=1; }
